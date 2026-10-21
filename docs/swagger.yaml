@@ -1,0 +1,66 @@
+
+openapi: 3.0.0
+
+info:
+  title: API Cine Paradiso
+  version: 1.0.0
+  description: Sistema de venta de entradas de cine.
+
+servers:
+  - url: http://localhost:5000
+    descripcion: Servidor local de desarrollo backend
+
+tags:
+  - name: Funciones
+    description: Gestión de funciones de cine
+
+paths:
+  /admin/funciones:
+    post:
+      tags:
+        - Funciones
+      summary: Crear una función
+      description: Permite al administrador programar una función.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuncionCreate'
+
+      responses:
+        '201':
+          description: Función creada correctamente
+        '400':
+          description: Datos inválidos
+        '401':
+          description: Usuario no autenticado
+        '403':
+          description: Usuario sin permisos
+        '409':
+          description: Conflicto de horario
+
+components:
+  schemas:
+    FuncionCreate:
+      type: object
+      required:
+        - pelicula_id
+        - sala_id
+        - fecha_hora
+        - precio
+      properties:
+        pelicula_id:
+          type: integer
+          example: 1
+        sala_id:
+          type: integer
+          example: 2
+        fecha_hora:
+          type: string
+          format: date-time
+          example: "2026-11-15T20:30:00-03:00"
+        precio:
+          type: number
+          example: 5000
