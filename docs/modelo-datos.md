@@ -21,10 +21,10 @@ Se establecieron restricciones UNIQUE para evitar butacas duplicadas en una mism
 
 ### Diagrama del modelo de datos
 
-![Diagrama de cartelera y salas](modelo-datos/modelo_cartelera_salas.png)
+![Diagrama de cartelera y salas](modelo_cartelera_salas.png)
 
 ### Archivos del modelo
 
-- [Modelo DBML](modelo-datos/modelo_cartelera_salas.dbml)
-- [Diagrama PDF](modelo-datos/modelo_cartelera_salas.pdf)
-- [Imagen del diagrama](modelo-datos/modelo_cartelera_salas.png)
+- [Modelo DBML](modelo_cartelera_salas.dbml)
+- [Diagrama PDF](modelo_cartelera_salas.pdf)
+- [Imagen del diagrama](modelo_cartelera_salas.png)
