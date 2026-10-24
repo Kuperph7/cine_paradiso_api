@@ -2,8 +2,8 @@ openapi: 3.0.3
 info:
   title: 'Cine Paradiso — API administrativa (Issue #10)'
   version: 1.0.0
-  description: 'Contrato inicial de los endpoints del backoffice para el Hito 1. Incluye películas, funciones,
-    salas, servicios, estadísticas y validación QR. Todas estas operaciones requieren autenticación y
+  description: 'Contrato inicial de los endpoints del backoffice y la compra de entradas para el Hito 1. Incluye películas, funciones,
+    salas, servicios, estadísticas, validación QR, compras y entradas. Las operaciones del backoffice requieren autenticación y
     rol administrador. Bearer/JWT se propone como método de seguridad para la autenticación.'
 servers:
 - url: http://localhost:5000
@@ -21,6 +21,10 @@ tags:
   description: Métricas del backoffice
 - name: Control de acceso (admin)
   description: Validación de QR de entradas
+- name: Entradas
+  descripcion: Listado de entradas compradas por el usuario y su estado
+- name: Compras
+  descripcion: Gestion de compras y creación de entradas
 security:
 - bearerAuth: []
 paths:
@@ -425,6 +429,193 @@ paths:
           $ref: '#/components/responses/Error404'
         '409':
           $ref: '#/components/responses/Error409'
+  /compras:
+    post:
+      tags:
+      - Compras (cliente)
+      summary: Realizar una compra de entradas
+      description: Crea y confirma una compra mediante confirmación directa/pago simulado. El backend valida la
+        función y la disponibilidad de todas las butacas, calcula el total usando el precio vigente de la función
+        y genera una entrada con QR único por cada butaca. La operación debe ser atómica para impedir la venta duplicada
+        de una butaca.
+      x-roles:
+      - cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompraCreate'
+      responses:
+        '201':
+          description: Compra confirmada y entradas emitidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompraResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+      security:
+      - bearerAuth: []
+  /mis-compras:
+    get:
+      tags:
+      - Compras (cliente)
+      summary: Listar mis compras
+      description: Devuelve las compras del cliente autenticado. No permite consultar compras de otros usuarios.
+      x-roles:
+      - cliente
+      responses:
+        '200':
+          description: Compras del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComprasLista'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+      security:
+      - bearerAuth: []
+  /compras/{compra_id}:
+    get:
+      tags:
+      - Compras (cliente)
+      summary: Consultar una compra
+      description: Devuelve el detalle de una compra perteneciente al cliente autenticado, incluidas sus entradas.
+        Solo cliente autenticado propietario de la compra.
+      x-roles:
+      - cliente
+      parameters:
+      - $ref: '#/components/parameters/CompraId'
+      responses:
+        '200':
+          description: Detalle de la compra
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompraResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+      security:
+      - bearerAuth: []
+  /compras/{compra_id}/cancelar:
+    post:
+      tags:
+      - Compras (cliente)
+      summary: Cancelar una compra
+      description: Solicita cancelar una compra del cliente autenticado. El backend debe rechazar la operación si
+        la función ya comenzó o si alguna entrada fue utilizada. La cancelación debe actualizar las entradas asociadas
+        y liberar las butacas cuando corresponda.
+      x-roles:
+      - cliente
+      parameters:
+      - $ref: '#/components/parameters/CompraId'
+      responses:
+        '200':
+          description: Compra cancelada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompraCancelacionResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+      security:
+      - bearerAuth: []
+  /mis-entradas:
+    get:
+      tags:
+      - Entradas (cliente)
+      summary: Listar mis entradas
+      description: Devuelve las entradas del cliente autenticado, con sus datos de función, butaca, estado y código
+        QR. No permite consultar entradas de otros usuarios.
+      x-roles:
+      - cliente
+      responses:
+        '200':
+          description: Entradas del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntradasLista'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+      security:
+      - bearerAuth: []
+  /entradas/{entrada_id}:
+    get:
+      tags:
+      - Entradas (cliente)
+      summary: Consultar una entrada
+      description: Devuelve el detalle de una entrada perteneciente al cliente autenticado, incluido su código QR.
+        Solo cliente autenticado propietario de la entrada.
+      x-roles:
+      - cliente
+      parameters:
+      - $ref: '#/components/parameters/EntradaId'
+      responses:
+        '200':
+          description: Entrada encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entrada'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+      security:
+      - bearerAuth: []
+  /funciones/{funcion_id}/butacas:
+    get:
+      tags:
+      - Funciones (cliente)
+      summary: Consultar disponibilidad de butacas de una función
+      description: Devuelve las butacas de la sala asociada a la función y su disponibilidad. Solo cliente autenticado.
+      x-roles:
+      - cliente
+      parameters:
+      - $ref: '#/components/parameters/FuncionId'
+      responses:
+        '200':
+          description: Disponibilidad de butacas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ButacasFuncionLista'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+      security:
+      - bearerAuth: []
 components:
   securitySchemes:
     bearerAuth:
@@ -947,6 +1138,178 @@ components:
         mensaje:
           type: string
           example: Recurso creado correctamente
+    ButacaFuncion:
+      type: object
+      required:
+      - butaca_id
+      - fila
+      - numero
+      - estado
+      properties:
+        butaca_id:
+          type: integer
+          example: 12
+        fila:
+          type: string
+          example: B
+        numero:
+          type: integer
+          example: 4
+        estado:
+          type: string
+          enum:
+          - disponible
+          - ocupada
+          example: disponible
+    ButacasFuncionLista:
+      type: object
+      properties:
+        funcion_id:
+          type: integer
+          example: 3
+        butacas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ButacaFuncion'
+    CompraCreate:
+      type: object
+      required:
+      - funcion_id
+      - butaca_ids
+      properties:
+        funcion_id:
+          type: integer
+          minimum: 1
+          example: 3
+          description: Función para la que se compran las entradas.
+          butaca_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+          example:
+          - 12
+          - 13
+          description: Identificadores de butacas numeradas. Todas deben pertenecer a la sala de la función y estar
+            disponibles.
+    Entrada:
+      type: object
+      required:
+      - id
+      - compra_id
+      - funcion_id
+      - butaca_id
+      - precio
+      - estado
+      properties:
+        id:
+          type: integer
+          example: 101
+        compra_id:
+          type: integer
+          example: 42
+        funcion_id:
+          type: integer
+          example: 3
+        butaca_id:
+          type: integer
+          example: 12
+        precio:
+          type: integer
+          minimum: 0
+          example: 5000
+          description: Precio de esta entrada en pesos argentinos enteros, registrado al momento de la compra.
+        codigo_qr:
+          type: string
+          example: QRCINE-a8f7c2
+          description: Token único para validar el ingreso; no debe contener datos sensibles.
+        estado:
+          type: string
+          enum:
+          - emitida
+          - utilizada
+          - cancelada
+          example: emitida
+    Compra:
+      type: object
+      required:
+      - id
+      - usuario_id
+      - funcion_id
+      - estado
+      - total
+      - fecha_hora
+      properties:
+        id:
+          type: integer
+          example: 42
+        usuario_id:
+        type: integer
+          example: 7
+          description: Identificador del usuario autenticado que realizó la compra.
+        funcion_id:
+          type: integer
+          example: 3
+        estado:
+          type: string
+          enum:
+          - confirmada
+          - cancelada
+          example: confirmada
+        total:
+          type: integer
+          minimum: 0
+          example: 10000
+          description: Importe total en pesos argentinos enteros.
+        fecha_hora:
+          type: string
+          format: date-time
+          example: '2026-11-15T18:30:00-03:00'
+        entradas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entrada'
+    CompraResponse:
+      allOf:
+      - $ref: '#/components/schemas/Compra'
+      - type: object
+        required:
+        - mensaje
+        properties:
+          mensaje:
+            type: string
+            example: Compra confirmada correctamente
+    ComprasLista:
+      type: object
+      properties:
+        compras:
+          type: array
+          items:
+            $ref: '#/components/schemas/Compra'
+    EntradasLista:
+      type: object
+      properties:
+        entradas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entrada'
+    CompraCancelacionResponse:
+      type: object
+      required:
+      - id
+      - estado
+      - mensaje
+      properties:
+        id:
+          type: integer
+          example: 42
+        estado:
+          type: string
+          enum:
+          - cancelada
+          example: cancelada
     Error:
       type: object
       required:
