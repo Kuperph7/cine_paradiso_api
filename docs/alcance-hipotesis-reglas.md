@@ -46,6 +46,7 @@ Los siguientes detalles no están definidos por completo y deben acordarse en el
 - Si se generará un código QR uno por compra.
 - La escala y los criterios concretos para puntuar o reseñar películas - Decidimos nosotros.
 - El criterio para determinar cuáles son las películas más vistas es según las entradas vendidas.
+- Bloqueo de butaca de 5min por paso (cada etapa tiene 5 minutos aparte y bloquea esa butaca para tu compra)
 
 ## 4. Reglas de negocio
 
