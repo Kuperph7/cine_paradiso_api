@@ -14,7 +14,7 @@ Desarrollar una aplicación web para que los clientes consulten la cartelera, el
 
 - Consultar películas, información y funciones disponibles.
 - Consultar la disponibilidad de butacas y seleccionar butacas para una función.
-- Comprar entradas y servicios adicionales, como comida, bebidas, estacionamiento o acceso VIP.
+- Comprar entradas y servicios adicionales, como comida, bebidas, estacionamiento (max 20 en general para todo el día) o acceso VIP.
 - Recibir por correo electrónico la confirmación, la factura y el código QR de ingreso.
 - Consultar su perfil, consumos y películas vistas anteriormente.
 - Solicitar la cancelación de una entrada dentro del plazo establecido.
@@ -42,10 +42,10 @@ La consigna establece que Cine Paradiso tiene tres locales; contempla clientes y
 
 Los siguientes detalles no están definidos por completo y deben acordarse en el equipo:
 
-- El plazo exacto para cancelar una entrada.
-- Si se generará un código QR por entrada o uno por compra.
-- La escala y los criterios concretos para puntuar o reseñar películas.
-- El criterio para determinar cuáles son las películas más vistas, por ejemplo, según las entradas vendidas o las entradas efectivamente validadas.
+- El plazo exacto para cancelar una entrada - Los cines estiman 1hs antes.
+- Si se generará un código QR uno por compra.
+- La escala y los criterios concretos para puntuar o reseñar películas - Decidimos nosotros.
+- El criterio para determinar cuáles son las películas más vistas es según las entradas vendidas.
 
 ## 4. Reglas de negocio
 
