@@ -9,6 +9,10 @@ servers:
 - url: http://localhost:5000
   description: Backend Flask local
 tags:
+- name: Autenticación
+  description: Registro, inicio de sesión y gestión de sesiones
+- name: Cartelera
+  description: Consulta pública de películas en cartelera, funciones vigentes y disponibilidad de butacas
 - name: Películas (admin)
   description: Catálogo, incluyendo búsqueda en API externa
 - name: Funciones (admin)
@@ -24,6 +28,161 @@ tags:
 security:
 - bearerAuth: []
 paths:
+
+  /auth/register:
+    post:
+      tags:
+      - Autenticación
+      summary: Registro de nuevo cliente
+      description: Permite a un nuevo usuario cliente crear una cuenta en el sistema.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioRegister'
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreacionResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '409':
+          $ref: '#/components/responses/Error409'
+
+  /auth/login:
+    post:
+      tags:
+      - Autenticación
+      summary: Iniciar sesión
+      description: Autentica credenciales y devuelve el token JWT junto con los datos de usuario y su rol ('cliente' o 'administrador').
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Autenticación exitosa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /auth/perfil:
+    get:
+      tags:
+      - Autenticación
+      summary: Obtener perfil del usuario autenticado
+      description: Retorna la información del usuario en sesión actual (requerido para cliente y admin).
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil obtenido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /auth/logout:
+    post:
+      tags:
+      - Autenticación
+      summary: Cerrar sesión
+      description: Invalida la sesión actual del usuario.
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: Sesión cerrada correctamente
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /cartelera:
+    get:
+      tags:
+      - Cartelera
+      summary: Listar películas en cartelera
+      description: Devuelve las películas con funciones vigentes. Permite filtrar opcionalmente por centro de entretenimiento (local) y por fecha.
+      security: []
+      parameters:
+      - name: local_id
+        in: query
+        required: false
+        description: Filtrar por identificador de local (centro de entretenimiento)
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+      - name: fecha
+        in: query
+        required: false
+        description: Filtrar por fecha (YYYY-MM-DD)
+        schema:
+          type: string
+          format: date
+        example: '2026-11-15'
+      responses:
+        '200':
+          description: Películas en cartelera
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CarteleraLista'
+        '400':
+          $ref: '#/components/responses/Error400'
+
+  /cartelera/{pelicula_id}:
+    get:
+      tags:
+      - Cartelera
+      summary: Detalle de película y funciones disponibles
+      description: Muestra la información completa de la película (sinopsis, póster, duración, clasificación) y el listado de funciones disponibles.
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/PeliculaId'
+      responses:
+        '200':
+          description: Detalle de película y sus funciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeliculaDetalleCartelera'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /cartelera/funciones/{funcion_id}/butacas:
+    get:
+      tags:
+      - Cartelera
+      summary: Disponibilidad de butacas de una función
+      description: Retorna el mapa de butacas de la sala indicando cuáles están libres y cuáles ocupadas para el flujo de compra.
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/FuncionId'
+      responses:
+        '200':
+          description: Estado de butacas de la función
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisponibilidadButacas'
+        '404':
+          $ref: '#/components/responses/Error404'
+
   /admin/peliculas/externas:
     get:
       tags:
@@ -501,6 +660,232 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   schemas:
+    UsuarioRegister:
+      type: object
+      required:
+      - nombre
+      - email
+      - password
+      properties:
+        nombre:
+          type: string
+          example: Juan Pérez
+        email:
+          type: string
+          format: email
+          example: juan.perez@example.com
+        password:
+          type: string
+          format: password
+          example: ClaveSegura123!
+
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: juan.perez@example.com
+        password:
+          type: string
+          format: password
+          example: ClaveSegura123!
+
+    LoginResponse:
+      type: object
+      required:
+      - token
+      - usuario
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        usuario:
+          $ref: '#/components/schemas/Usuario'
+
+    Usuario:
+      type: object
+      required:
+      - id
+      - nombre
+      - email
+      - rol
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Juan Pérez
+        email:
+          type: string
+          format: email
+          example: juan.perez@example.com
+        rol:
+          type: string
+          enum:
+          - cliente
+          - administrador
+          example: cliente
+
+    PeliculaCartelera:
+      type: object
+      required:
+      - id
+      - titulo
+      - duracion_minutos
+      properties:
+        id:
+          type: integer
+          example: 1
+        titulo:
+          type: string
+          example: Cinema Paradiso
+        sinopsis:
+          type: string
+          example: Un cineasta recuerda su infancia en un pequeño pueblo italiano.
+        poster_url:
+          type: string
+          format: uri
+          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
+        duracion_minutos:
+          type: integer
+          example: 155
+        clasificacion:
+          type: string
+          example: +13
+        generos:
+          type: array
+          items:
+            type: string
+          example:
+          - Drama
+          - Romance
+
+    CarteleraLista:
+      type: object
+      required:
+      - peliculas
+      properties:
+        peliculas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeliculaCartelera'
+
+    FuncionCarteleraItem:
+      type: object
+      required:
+      - id
+      - sala_numero
+      - local_nombre
+      - fecha_hora
+      - precio
+      properties:
+        id:
+          type: integer
+          example: 10
+        local_id:
+          type: integer
+          example: 1
+        local_nombre:
+          type: string
+          example: Cine Paradiso Abasto
+        sala_numero:
+          type: integer
+          example: 2
+        fecha_hora:
+          type: string
+          format: date-time
+          description: Fecha y hora unificada en formato ISO 8601 (requisito obligatorio cátedra)
+          example: '2026-11-15T20:30:00-03:00'
+        precio:
+          type: integer
+          example: 5000
+
+    PeliculaDetalleCartelera:
+      type: object
+      required:
+      - id
+      - titulo
+      - funciones_disponibles
+      properties:
+        id:
+          type: integer
+          example: 1
+        titulo:
+          type: string
+          example: Cinema Paradiso
+        sinopsis:
+          type: string
+          example: Un cineasta recuerda su infancia en un pequeño pueblo italiano.
+        poster_url:
+          type: string
+          format: uri
+          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
+        duracion_minutos:
+          type: integer
+          example: 155
+        clasificacion:
+          type: string
+          example: +13
+        generos:
+          type: array
+          items:
+            type: string
+          example:
+          - Drama
+          - Romance
+        funciones_disponibles:
+          type: array
+          items:
+            $ref: '#/components/schemas/FuncionCarteleraItem'
+
+    ButacaItem:
+      type: object
+      required:
+      - id
+      - fila
+      - columna
+      - ocupada
+      properties:
+        id:
+          type: integer
+          example: 12
+        fila:
+          type: string
+          example: C
+        columna:
+          type: integer
+          example: 4
+        ocupada:
+          type: boolean
+          example: false
+
+    DisponibilidadButacas:
+      type: object
+      required:
+      - funcion_id
+      - total_butacas
+      - butacas_libres
+      - butacas
+      properties:
+        funcion_id:
+          type: integer
+          example: 10
+        total_butacas:
+          type: integer
+          example: 60
+        butacas_libres:
+          type: integer
+          example: 45
+        butacas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ButacaItem'
+
     PeliculaExterna:
       type: object
       required:
