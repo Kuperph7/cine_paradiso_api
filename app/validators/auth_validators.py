@@ -18,10 +18,18 @@ def validar_registro_usuario(data: dict):
     if not email:
         raise ApiError(400, "ERROR_VALIDACION", "Email requerido", "El campo 'email' no puede estar vacío.")
 
-    # Expresión regular para validar formato de email
     email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
     if not re.match(email_regex, email):
         raise ApiError(400, "ERROR_VALIDACION", "Email inválido", "El formato del correo electrónico no es válido.")
 
     if not password or len(password) < 6:
         raise ApiError(400, "ERROR_VALIDACION", "Contraseña inválida", "La contraseña debe tener al menos 6 caracteres.")
+
+
+def validar_login_usuario(data: dict):
+    """Valida los campos necesarios para iniciar sesión."""
+    if not data or not isinstance(data, dict):
+        raise ApiError(400, "ERROR_VALIDACION", "Datos inválidos", "El cuerpo de la solicitud debe ser un JSON válido.")
+    if not data.get("email") or not data.get("password"):
+        raise ApiError(400, "ERROR_VALIDACION", "Datos incompletos", "Email y contraseña son obligatorios.")
+

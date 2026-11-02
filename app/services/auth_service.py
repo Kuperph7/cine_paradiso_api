@@ -1,6 +1,8 @@
 """Servicios de autenticación y perfiles."""
-
-from werkzeug.security import generate_password_hash
+from datetime import datetime, timedelta, timezone
+from flask import current_app
+import jwt
+from werkzeug.security import generate_password_hash, check_password_hash
 from app.errors import ApiError
 from app.repositories import usuarios_repository
 
@@ -11,7 +13,6 @@ def registrar_cliente(data: dict) -> dict:
     nombre = data["nombre"].strip()
     password = data["password"]
 
-    # 1. Verificar si el email ya existe en la base de datos
     usuario_existente = usuarios_repository.obtener_usuario_por_email(email)
     if usuario_existente:
         raise ApiError(
@@ -21,10 +22,8 @@ def registrar_cliente(data: dict) -> dict:
             description="Ya existe una cuenta con este correo electrónico."
         )
 
-    # 2. Hashear la contraseña (¡Seguridad fundamental!)
     password_hash = generate_password_hash(password)
 
-    # 3. Guardar en la base de datos con rol 'cliente'
     nuevo_id = usuarios_repository.crear_usuario(
         nombre=nombre,
         email=email,
@@ -35,4 +34,33 @@ def registrar_cliente(data: dict) -> dict:
     return {
         "id": nuevo_id,
         "mensaje": "Usuario registrado exitosamente"
+    }
+
+
+def iniciar_sesion(data: dict) -> dict:
+    """Valida credenciales y genera el token de acceso JWT."""
+    email = data["email"].strip().lower()
+    password = data["password"]
+
+    usuario = usuarios_repository.obtener_usuario_por_email(email)
+
+    if not usuario or not check_password_hash(usuario["password_hash"], password):
+        raise ApiError(401, "CREDENCIALES_INVALIDAS", "Error de autenticación", "Email o contraseña incorrectos.")
+
+    payload = {
+        "usuario_id": usuario["id"],
+        "email": usuario["email"],
+        "rol": usuario["rol"],
+        "exp": datetime.now(timezone.utc) + timedelta(hours=4)
+    }
+    token = jwt.encode(payload, current_app.config["SECRET_KEY"], algorithm="HS256")
+
+    return {
+        "token": token,
+        "usuario": {
+            "id": usuario["id"],
+            "nombre": usuario["nombre"],
+            "email": usuario["email"],
+            "rol": usuario["rol"]
+        }
     }
