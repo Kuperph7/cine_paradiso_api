@@ -4,6 +4,7 @@ from app.validators.auth_validators import validar_header_autorizacion
 from app.validators.admin_validators import (
     validar_creacion_servicio,
     validar_actualizacion_servicio,
+    validar_entrada_qr_request,
 )
 from app.services.admin_service import (
     listar_servicios,
@@ -11,6 +12,7 @@ from app.services.admin_service import (
     modificar_servicio,
     eliminar_servicio,
 )
+from app.services.entradas_service import validar_entrada_qr
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -49,3 +51,14 @@ def delete_servicio(servicio_id: int):
     token = validar_header_autorizacion(request.headers.get("Authorization"))
     eliminar_servicio(token, servicio_id)
     return "", 204
+
+
+@admin_bp.route("/entradas/validar", methods=["POST"])
+def post_validar_entrada():
+    """Verifica el QR de una entrada y la marca como utilizada si el acceso es válido."""
+    token = validar_header_autorizacion(request.headers.get("Authorization"))
+    data = request.get_json()
+    validar_entrada_qr_request(data)
+    resultado = validar_entrada_qr(token, data["codigo_qr"].strip(), data["funcion_id"])
+    return jsonify(resultado), 200
+

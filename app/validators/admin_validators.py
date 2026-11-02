@@ -43,3 +43,18 @@ def validar_actualizacion_servicio(data: dict):
         descripcion = data["descripcion"]
         if not isinstance(descripcion, str):
             raise ApiError(400, "ERROR_VALIDACION", "Descripción inválida", "El campo 'descripcion' debe ser una cadena de texto.")
+
+
+def validar_entrada_qr_request(data: dict):
+    """Valida que el cuerpo del request incluya codigo_qr y funcion_id."""
+    if not data or not isinstance(data, dict):
+        raise ApiError(400, "ERROR_VALIDACION", "Datos inválidos", "El cuerpo de la solicitud debe ser un JSON válido.")
+
+    codigo_qr = data.get("codigo_qr")
+    if not codigo_qr or not isinstance(codigo_qr, str) or not codigo_qr.strip():
+        raise ApiError(400, "ERROR_VALIDACION", "Código QR requerido", "El campo 'codigo_qr' es obligatorio.")
+
+    funcion_id = data.get("funcion_id")
+    if funcion_id is None or not isinstance(funcion_id, int) or funcion_id < 1:
+        raise ApiError(400, "ERROR_VALIDACION", "Función inválida", "El campo 'funcion_id' debe ser un entero positivo.")
+
