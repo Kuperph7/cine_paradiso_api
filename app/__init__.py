@@ -7,6 +7,7 @@ from app.routes.auth import auth_bp
 from app.routes.cartelera import cartelera_bp
 from app.routes.compras import compras_bp
 from app.routes.entradas import entradas_bp
+from app.routes.salas import salas_bp
 
 
 def create_app(config_class=Config):
@@ -18,6 +19,7 @@ def create_app(config_class=Config):
     app.register_blueprint(compras_bp)
     app.register_blueprint(entradas_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(salas_bp)
     app.register_error_handler(ApiError, error_response)
 
     return app

@@ -1,4 +1,4 @@
-"""Autorización JWT necesaria para los endpoints protegidos."""
+"""Autorización JWT necesaria para los endpoints administrativos."""
 
 import jwt
 from flask import current_app, request
