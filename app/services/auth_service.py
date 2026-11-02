@@ -64,3 +64,24 @@ def iniciar_sesion(data: dict) -> dict:
             "rol": usuario["rol"]
         }
     }
+
+
+def obtener_perfil_usuario(token: str) -> dict:
+    """Decodifica el token JWT y obtiene los datos del perfil del usuario."""
+    try:
+        payload = jwt.decode(token, current_app.config["SECRET_KEY"], algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise ApiError(401, "TOKEN_EXPIRADO", "Sesión expirada", "El token ha expirado. Inicie sesión nuevamente.")
+    except jwt.InvalidTokenError:
+        raise ApiError(401, "TOKEN_INVALIDO", "Token inválido", "El token de autenticación no es válido.")
+
+    usuario = usuarios_repository.obtener_usuario_por_id(payload["usuario_id"])
+    if not usuario:
+        raise ApiError(404, "USUARIO_NO_ENCONTRADO", "Usuario no encontrado", "El usuario asociado al token no existe.")
+
+    return {
+        "id": usuario["id"],
+        "nombre": usuario["nombre"],
+        "email": usuario["email"],
+        "rol": usuario["rol"]
+    }

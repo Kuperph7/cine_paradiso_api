@@ -1,6 +1,14 @@
 from flask import Blueprint, request, jsonify
-from app.validators.auth_validators import validar_registro_usuario, validar_login_usuario
-from app.services.auth_service import registrar_cliente, iniciar_sesion
+from app.validators.auth_validators import (
+    validar_registro_usuario,
+    validar_login_usuario,
+    validar_header_autorizacion,
+)
+from app.services.auth_service import (
+    registrar_cliente,
+    iniciar_sesion,
+    obtener_perfil_usuario,
+)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -28,3 +36,12 @@ def login():
 def logout():
     """Cierra la sesión indicando al cliente que debe eliminar el token."""
     return "", 204
+
+
+@auth_bp.route("/perfil", methods=["GET"])
+def perfil():
+    """Obtiene el perfil del usuario autenticado a partir del token JWT."""
+    auth_header = request.headers.get("Authorization")
+    token = validar_header_autorizacion(auth_header)
+    usuario = obtener_perfil_usuario(token)
+    return jsonify(usuario), 200
