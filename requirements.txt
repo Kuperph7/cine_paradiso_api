@@ -3,5 +3,6 @@ mysql-connector-python
 python-dotenv
 requests
 qrcode[pil]
+PyJWT
 pytest
 
