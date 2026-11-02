@@ -1,69 +1,60 @@
 openapi: 3.0.3
-info:
-  title: 'Cine Paradiso — API administrativa (Issue #10)'
-  version: 1.0.0
-  description: 'Contrato inicial de los endpoints del backoffice y la compra de entradas para el Hito 1. Incluye películas, funciones,
-    salas, servicios, estadísticas, validación QR, compras y entradas. Las operaciones del backoffice requieren autenticación y
-    rol administrador. Bearer/JWT se propone como método de seguridad para la autenticación.'
-servers:
-- url: http://localhost:5000
-  description: Backend Flask local
-tags:
-- name: Autenticación
-  description: Registro, inicio de sesión y gestión de sesiones
-- name: Cartelera
-  description: Consulta pública de películas en cartelera, funciones vigentes y disponibilidad de butacas
-- name: Películas (admin)
-  description: Catálogo, incluyendo búsqueda en API externa
-- name: Funciones (admin)
-  description: Programación y modificación de funciones
-- name: Salas (admin)
-  description: Configuración de salas y butacas
-- name: Servicios (admin)
-  description: Alta, modificación y baja lógica de adicionales
-- name: Estadísticas (admin)
-  description: Métricas del backoffice
-- name: Control de acceso (admin)
-  description: Validación de QR de entradas
-- name: Entradas
-  descripcion: Listado de entradas compradas por el usuario y su estado
-- name: Compras
-  descripcion: Gestion de compras y creación de entradas
-security:
-- bearerAuth: []
-paths:
 
-  /auth/register:
+info:
+  title: Cine Paradiso API
+  version: 2.0.0
+  description: |
+    Contrato unificado para autenticación, cartelera, compras, entradas y
+    administración. Las rutas representan recursos, no roles. La autorización
+    se resuelve con el rol `usuario` o `administrador` incluido en el JWT.
+
+servers:
+  - url: http://localhost:5000
+    description: Backend Flask local
+
+tags:
+  - name: Autenticación
+  - name: Cartelera
+  - name: Compras
+  - name: Entradas
+  - name: Películas
+  - name: Funciones
+  - name: Salas
+  - name: Servicios
+  - name: Estadísticas
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/registro:
     post:
-      tags:
-      - Autenticación
-      summary: Registro de nuevo cliente
-      description: Permite a un nuevo usuario cliente crear una cuenta en el sistema.
+      tags: [Autenticación]
+      operationId: registrarUsuario
+      summary: Registrar un usuario
+      description: Crea una cuenta con rol `usuario`.
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UsuarioRegister'
+              $ref: '#/components/schemas/RegistroRequest'
       responses:
         '201':
-          description: Usuario registrado exitosamente
+          description: Usuario registrado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreacionResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '409':
-          $ref: '#/components/responses/Error409'
+                $ref: '#/components/schemas/Usuario'
+        '400': { $ref: '#/components/responses/Error400' }
+        '409': { $ref: '#/components/responses/Error409' }
 
   /auth/login:
     post:
-      tags:
-      - Autenticación
+      tags: [Autenticación]
+      operationId: iniciarSesion
       summary: Iniciar sesión
-      description: Autentica credenciales y devuelve el token JWT junto con los datos de usuario y su rol ('cliente' o 'administrador').
       security: []
       requestBody:
         required: true
@@ -73,1637 +64,1191 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Autenticación exitosa
+          description: Credenciales válidas
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
 
-  /auth/perfil:
+  /peliculas:
     get:
-      tags:
-      - Autenticación
-      summary: Obtener perfil del usuario autenticado
-      description: Retorna la información del usuario en sesión actual (requerido para cliente y admin).
+      tags: [Cartelera, Películas]
+      operationId: listarPeliculas
+      summary: Listar películas
+      description: |
+        El público ve películas activas con funciones publicadas. Un
+        administrador puede incluir las inactivas mediante el filtro.
       security:
-      - bearerAuth: []
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, usuario, administrador]
+      parameters:
+        - name: incluir_inactivas
+          in: query
+          required: false
+          description: Filtro exclusivo del rol `administrador`.
+          schema: { type: boolean, default: false }
+        - name: titulo
+          in: query
+          required: false
+          schema: { type: string }
       responses:
         '200':
-          description: Perfil obtenido
+          description: Películas listadas
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Usuario'
-        '401':
-          $ref: '#/components/responses/Error401'
-
-  /auth/logout:
+              schema: { $ref: '#/components/schemas/PeliculasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
     post:
-      tags:
-      - Autenticación
-      summary: Cerrar sesión
-      description: Invalida la sesión actual del usuario.
-      security:
-      - bearerAuth: []
-      responses:
-        '204':
-          description: Sesión cerrada correctamente
-        '401':
-          $ref: '#/components/responses/Error401'
-
-  /cartelera:
-    get:
-      tags:
-      - Cartelera
-      summary: Listar películas en cartelera
-      description: Devuelve las películas con funciones vigentes. Permite filtrar opcionalmente por centro de entretenimiento (local) y por fecha.
-      security: []
-      parameters:
-      - name: local_id
-        in: query
-        required: false
-        description: Filtrar por identificador de local (centro de entretenimiento)
-        schema:
-          type: integer
-          minimum: 1
-        example: 1
-      - name: fecha
-        in: query
-        required: false
-        description: Filtrar por fecha (YYYY-MM-DD)
-        schema:
-          type: string
-          format: date
-        example: '2026-11-15'
-      responses:
-        '200':
-          description: Películas en cartelera
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CarteleraLista'
-        '400':
-          $ref: '#/components/responses/Error400'
-
-  /cartelera/{pelicula_id}:
-    get:
-      tags:
-      - Cartelera
-      summary: Detalle de película y funciones disponibles
-      description: Muestra la información completa de la película (sinopsis, póster, duración, clasificación) y el listado de funciones disponibles.
-      security: []
-      parameters:
-      - $ref: '#/components/parameters/PeliculaId'
-      responses:
-        '200':
-          description: Detalle de película y sus funciones
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PeliculaDetalleCartelera'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /cartelera/funciones/{funcion_id}/butacas:
-    get:
-      tags:
-      - Cartelera
-      summary: Disponibilidad de butacas de una función
-      description: Retorna el mapa de butacas de la sala indicando cuáles están libres y cuáles ocupadas para el flujo de compra.
-      security: []
-      parameters:
-      - $ref: '#/components/parameters/FuncionId'
-      responses:
-        '200':
-          description: Estado de butacas de la función
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DisponibilidadButacas'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /admin/peliculas/externas:
-    get:
-      tags:
-      - Películas (admin)
-      summary: Buscar películas en un catálogo externo
-      description: Consulta desde el backend la API externa acordada (OMDb o TMDB) para ayudar a cargar
-        título, sinopsis y póster. Solo administrador.
-      parameters:
-      - name: titulo
-        in: query
-        required: true
-        description: Texto a buscar
-        schema:
-          type: string
-        example: El padrino
-      responses:
-        '200':
-          description: Resultados encontrados
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PeliculasExternasLista'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-  /admin/peliculas:
-    get:
-      tags:
-      - Películas (admin)
-      summary: Listar películas del backoffice
-      description: Incluye películas activas e inactivas para su administración. Solo administrador.
-      responses:
-        '200':
-          description: Listado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PeliculasLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-    post:
-      tags:
-      - Películas (admin)
-      summary: Dar de alta una película
-      description: Crea la ficha local de una película con información tomada del catálogo externo y completada
-        por el administrador. Solo administrador.
+      tags: [Películas]
+      operationId: crearPelicula
+      summary: Crear una película
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PeliculaCreate'
+            schema: { $ref: '#/components/schemas/PeliculaCreate' }
       responses:
         '201':
           description: Película creada
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CreacionResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '409':
-          $ref: '#/components/responses/Error409'
-  /admin/peliculas/{pelicula_id}:
-    patch:
-      tags:
-      - Películas (admin)
-      summary: Modificar o desactivar una película
-      description: Actualiza parcialmente los datos. Para darla de baja se envía activa=false y se conserva
-        el historial. Solo administrador.
+              schema: { $ref: '#/components/schemas/Pelicula' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /peliculas/externas:
+    get:
+      tags: [Películas]
+      operationId: buscarPeliculasExternas
+      summary: Buscar películas en el catálogo externo
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       parameters:
-      - $ref: '#/components/parameters/PeliculaId'
+        - name: titulo
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+          example: El padrino
+      responses:
+        '200':
+          description: Resultados encontrados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculasExternasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+
+  /peliculas/{pelicula_id}:
+    get:
+      tags: [Cartelera, Películas]
+      operationId: obtenerPelicula
+      summary: Obtener una película
+      description: El administrador también puede consultar películas inactivas.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, usuario, administrador]
+      parameters:
+        - $ref: '#/components/parameters/PeliculaId'
+      responses:
+        '200':
+          description: Película encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pelicula' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '404': { $ref: '#/components/responses/Error404' }
+    patch:
+      tags: [Películas]
+      operationId: actualizarPelicula
+      summary: Modificar o desactivar una película
+      description: Requiere rol `administrador`. La baja se indica con `activa=false`.
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/PeliculaId'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PeliculaUpdate'
+            schema: { $ref: '#/components/schemas/PeliculaUpdate' }
       responses:
-        '204':
+        '200':
           description: Película actualizada
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-  /admin/funciones:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pelicula' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /funciones:
     get:
-      tags:
-      - Funciones (admin)
-      summary: Listar funciones programadas y canceladas
-      description: Permite al backoffice consultar funciones, incluidas las canceladas. Solo administrador.
+      tags: [Cartelera, Funciones]
+      operationId: listarFunciones
+      summary: Listar funciones
+      description: |
+        El público ve funciones programadas y publicadas. Un administrador
+        puede filtrar por cualquier estado usando la misma ruta.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, usuario, administrador]
+      parameters:
+        - name: pelicula_id
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: desde
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: hasta
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: estado
+          in: query
+          required: false
+          description: Filtro exclusivo del rol `administrador`.
+          schema: { $ref: '#/components/schemas/EstadoFuncion' }
       responses:
         '200':
           description: Funciones listadas
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/FuncionesLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              schema: { $ref: '#/components/schemas/FuncionesLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
     post:
-      tags:
-      - Funciones (admin)
+      tags: [Funciones]
+      operationId: crearFuncion
       summary: Programar una función
-      description: Asigna película a sala en un único instante fecha_hora. Evita superposiciones con otras
-        funciones de esa sala. Solo administrador.
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/FuncionCreate'
+            schema: { $ref: '#/components/schemas/FuncionCreate' }
       responses:
         '201':
           description: Función creada
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CreacionResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-  /admin/funciones/{funcion_id}:
-    patch:
-      tags:
-      - Funciones (admin)
-      summary: Modificar o cancelar una función
-      description: Permite cambiar horario, precio o estado. Un cambio de horario con entradas vendidas
-        debe rechazarse con 409; la cancelación de función requiere las reglas acordadas para entradas
-        compradas. Solo administrador.
+              schema: { $ref: '#/components/schemas/Funcion' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /funciones/{funcion_id}:
+    get:
+      tags: [Cartelera, Funciones]
+      operationId: obtenerFuncion
+      summary: Obtener una función
+      description: El administrador también puede consultar funciones no publicadas.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, usuario, administrador]
       parameters:
-      - $ref: '#/components/parameters/FuncionId'
+        - $ref: '#/components/parameters/FuncionId'
+      responses:
+        '200':
+          description: Función encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Funcion' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '404': { $ref: '#/components/responses/Error404' }
+    patch:
+      tags: [Funciones]
+      operationId: actualizarFuncion
+      summary: Modificar, publicar o cancelar una función
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/FuncionId'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/FuncionUpdate'
+            schema: { $ref: '#/components/schemas/FuncionUpdate' }
       responses:
-        '204':
+        '200':
           description: Función actualizada
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-  /admin/salas:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Funcion' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /funciones/{funcion_id}/butacas:
     get:
-      tags:
-      - Salas (admin)
-      summary: Listar salas del backoffice
-      description: Devuelve salas activas e inactivas de los locales. Solo administrador.
+      tags: [Cartelera]
+      operationId: listarButacasFuncion
+      summary: Consultar disponibilidad de butacas
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FuncionId'
+      responses:
+        '200':
+          description: Disponibilidad de la función
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ButacasFuncionLista' }
+        '404': { $ref: '#/components/responses/Error404' }
+
+  /salas:
+    get:
+      tags: [Salas]
+      operationId: listarSalas
+      summary: Listar salas
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
+      parameters:
+        - name: incluir_inactivas
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: Salas listadas
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SalasLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              schema: { $ref: '#/components/schemas/SalasLista' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
     post:
-      tags:
-      - Salas (admin)
-      summary: Configurar una sala nueva
-      description: 'Crea una sala en un local. Supuesto mínimo: butacas en cuadrícula regular; el backend
-        genera sus butacas numeradas. Solo administrador.'
+      tags: [Salas]
+      operationId: crearSala
+      summary: Crear una sala
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/SalaCreate'
+            schema: { $ref: '#/components/schemas/SalaCreate' }
       responses:
         '201':
           description: Sala creada
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CreacionResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-  /admin/salas/{sala_id}:
-    patch:
-      tags:
-      - Salas (admin)
-      summary: Modificar configuración o desactivar sala
-      description: Cambia nombre, distribución o estado. Rechaza cambios de butacas si afectan entradas
-        ya vendidas (409). Solo administrador.
+              schema: { $ref: '#/components/schemas/Sala' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /salas/{sala_id}:
+    get:
+      tags: [Salas]
+      operationId: obtenerSala
+      summary: Obtener una sala
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       parameters:
-      - $ref: '#/components/parameters/SalaId'
+        - $ref: '#/components/parameters/SalaId'
+      responses:
+        '200':
+          description: Sala encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sala' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+    patch:
+      tags: [Salas]
+      operationId: actualizarSala
+      summary: Modificar o desactivar una sala
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/SalaId'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/SalaUpdate'
+            schema: { $ref: '#/components/schemas/SalaUpdate' }
       responses:
-        '204':
+        '200':
           description: Sala actualizada
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-  /admin/servicios:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sala' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /servicios:
     get:
-      tags:
-      - Servicios (admin)
-      summary: Listar todos los servicios
-      description: Muestra servicios activos e inactivos para su gestión. Solo administrador.
+      tags: [Servicios]
+      operationId: listarServicios
+      summary: Listar servicios adicionales
+      description: |
+        El público ve servicios activos. Un administrador puede incluir los
+        inactivos mediante el filtro usando la misma ruta.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, usuario, administrador]
+      parameters:
+        - name: incluir_inactivos
+          in: query
+          required: false
+          description: Filtro exclusivo del rol `administrador`.
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: Servicios listados
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ServiciosLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
+              schema: { $ref: '#/components/schemas/ServiciosLista' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
     post:
-      tags:
-      - Servicios (admin)
-      summary: Dar de alta un servicio
-      description: Registra comida, bebida, estacionamiento u otro adicional disponible en todas las salas.
-        Solo administrador.
+      tags: [Servicios]
+      operationId: crearServicio
+      summary: Crear un servicio
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ServicioCreate'
+            schema: { $ref: '#/components/schemas/ServicioCreate' }
       responses:
         '201':
           description: Servicio creado
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CreacionResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '409':
-          $ref: '#/components/responses/Error409'
-  /admin/servicios/{servicio_id}:
-    patch:
-      tags:
-      - Servicios (admin)
-      summary: Modificar un servicio
-      description: Permite cambiar nombre, descripción o precio de un servicio. Solo administrador.
-      parameters:
-      - $ref: '#/components/parameters/ServicioId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ServicioUpdate'
-      responses:
-        '204':
-          description: Servicio actualizado
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-    delete:
-      tags:
-      - Servicios (admin)
-      summary: Dar de baja un servicio
-      description: 'Realiza una baja lógica: lo marca inactivo, sin borrar el historial de compras. Solo
-        administrador.'
-      parameters:
-      - $ref: '#/components/parameters/ServicioId'
-      responses:
-        '204':
-          description: Servicio desactivado
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-  /admin/estadisticas:
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /servicios/{servicio_id}:
     get:
-      tags:
-      - Estadísticas (admin)
-      summary: Consultar dashboard de ventas y ocupación
-      description: Devuelve ocupación por función y película, ventas por género, franjas más vendidas
-        y cantidad de cancelaciones. Solo administrador.
+      tags: [Servicios]
+      operationId: obtenerServicio
+      summary: Obtener un servicio
+      description: El administrador también puede consultar servicios inactivos.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, usuario, administrador]
       parameters:
-      - name: desde
-        in: query
-        required: false
-        description: Inicio del intervalo (si se indica, usar también hasta)
-        schema:
-          type: string
-          format: date-time
-        example: '2026-11-01T00:00:00-03:00'
-      - name: hasta
-        in: query
-        required: false
-        description: Fin del intervalo
-        schema:
-          type: string
-          format: date-time
-        example: '2026-11-30T23:59:59-03:00'
+        - $ref: '#/components/parameters/ServicioId'
       responses:
         '200':
-          description: Estadísticas calculadas
+          description: Servicio encontrado
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Estadisticas'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-  /admin/entradas/validar:
-    post:
-      tags:
-      - Control de acceso (admin)
-      summary: Validar QR y marcar la entrada como utilizada
-      description: En una única operación verifica que el QR exista, pertenezca a la función y fecha actuales
-        y no esté cancelado ni utilizado; si es válido, marca la entrada utilizada. Solo administrador.
-        La validación debe ser atómica para evitar doble ingreso.
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '404': { $ref: '#/components/responses/Error404' }
+    patch:
+      tags: [Servicios]
+      operationId: actualizarServicio
+      summary: Modificar un servicio
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ValidarEntradaRequest'
+            schema: { $ref: '#/components/schemas/ServicioUpdate' }
       responses:
         '200':
-          description: Entrada validada
+          description: Servicio actualizado
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ValidarEntradaResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
+              schema: { $ref: '#/components/schemas/Servicio' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+    delete:
+      tags: [Servicios]
+      operationId: eliminarServicio
+      summary: Desactivar un servicio
+      description: Requiere rol `administrador`. La baja es lógica.
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
+      responses:
+        '204': { description: Servicio desactivado }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
   /compras:
+    get:
+      tags: [Compras]
+      operationId: listarCompras
+      summary: Listar compras
+      description: |
+        Un usuario obtiene sus compras. Un administrador obtiene todas y puede
+        filtrar por `usuario_id`.
+      x-roles: [usuario, administrador]
+      parameters:
+        - name: usuario_id
+          in: query
+          required: false
+          description: Filtro exclusivo del rol `administrador`.
+          schema: { type: integer, minimum: 1 }
+        - name: estado
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/EstadoCompra' }
+      responses:
+        '200':
+          description: Compras listadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComprasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
     post:
-      tags:
-      - Compras (cliente)
-      summary: Realizar una compra de entradas
-      description: Crea y confirma una compra mediante confirmación directa/pago simulado. El backend valida la
-        función y la disponibilidad de todas las butacas, calcula el total usando el precio vigente de la función
-        y genera una entrada con QR único por cada butaca. La operación debe ser atómica para impedir la venta duplicada
-        de una butaca.
-      x-roles:
-      - cliente
+      tags: [Compras]
+      operationId: crearCompra
+      summary: Comprar entradas y servicios
+      description: |
+        Reserva las butacas, agrega los servicios seleccionados, calcula los
+        importes con precios vigentes y genera una entrada por butaca. Toda la
+        operación es atómica.
+      x-roles: [usuario, administrador]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/CompraCreate'
+            schema: { $ref: '#/components/schemas/CompraCreate' }
+            example:
+              funcion_id: 3
+              butaca_ids: [17, 18]
+              servicios:
+                - servicio_id: 4
+                  cantidad: 2
+              medio_pago: tarjeta
       responses:
         '201':
-          description: Compra confirmada y entradas emitidas
+          description: Compra confirmada y entradas generadas
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CompraResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-      security:
-      - bearerAuth: []
-  /mis-compras:
-    get:
-      tags:
-      - Compras (cliente)
-      summary: Listar mis compras
-      description: Devuelve las compras del cliente autenticado. No permite consultar compras de otros usuarios.
-      x-roles:
-      - cliente
-      responses:
-        '200':
-          description: Compras del cliente
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ComprasLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-      security:
-      - bearerAuth: []
+              schema: { $ref: '#/components/schemas/Compra' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
   /compras/{compra_id}:
     get:
-      tags:
-      - Compras (cliente)
-      summary: Consultar una compra
-      description: Devuelve el detalle de una compra perteneciente al cliente autenticado, incluidas sus entradas.
-        Solo cliente autenticado propietario de la compra.
-      x-roles:
-      - cliente
+      tags: [Compras]
+      operationId: obtenerCompra
+      summary: Obtener una compra
+      description: El usuario accede a compras propias; el administrador, a cualquiera.
+      x-roles: [usuario, administrador]
       parameters:
-      - $ref: '#/components/parameters/CompraId'
+        - $ref: '#/components/parameters/CompraId'
       responses:
         '200':
-          description: Detalle de la compra
+          description: Compra encontrada
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CompraResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-      security:
-      - bearerAuth: []
-  /compras/{compra_id}/cancelar:
-    post:
-      tags:
-      - Compras (cliente)
+              schema: { $ref: '#/components/schemas/Compra' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+    patch:
+      tags: [Compras]
+      operationId: cancelarCompra
       summary: Cancelar una compra
-      description: Solicita cancelar una compra del cliente autenticado. El backend debe rechazar la operación si
-        la función ya comenzó o si alguna entrada fue utilizada. La cancelación debe actualizar las entradas asociadas
-        y liberar las butacas cuando corresponda.
-      x-roles:
-      - cliente
+      description: |
+        El usuario cancela compras propias dentro del plazo permitido. El
+        administrador puede cancelar cualquiera. Se anulan las entradas y se
+        liberan las butacas en la misma transacción.
+      x-roles: [usuario, administrador]
       parameters:
-      - $ref: '#/components/parameters/CompraId'
+        - $ref: '#/components/parameters/CompraId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompraUpdate' }
       responses:
         '200':
           description: Compra cancelada
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CompraCancelacionResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-      security:
-      - bearerAuth: []
-  /mis-entradas:
+              schema: { $ref: '#/components/schemas/Compra' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /entradas:
     get:
-      tags:
-      - Entradas (cliente)
-      summary: Listar mis entradas
-      description: Devuelve las entradas del cliente autenticado, con sus datos de función, butaca, estado y código
-        QR. No permite consultar entradas de otros usuarios.
-      x-roles:
-      - cliente
+      tags: [Entradas]
+      operationId: listarEntradas
+      summary: Listar entradas
+      description: |
+        Un usuario obtiene sus entradas. Un administrador obtiene todas y puede
+        aplicar los filtros disponibles.
+      x-roles: [usuario, administrador]
+      parameters:
+        - name: usuario_id
+          in: query
+          required: false
+          description: Filtro exclusivo del rol `administrador`.
+          schema: { type: integer, minimum: 1 }
+        - name: funcion_id
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: estado
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/EstadoEntrada' }
       responses:
         '200':
-          description: Entradas del cliente
+          description: Entradas listadas
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/EntradasLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-      security:
-      - bearerAuth: []
+              schema: { $ref: '#/components/schemas/EntradasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+
+  /entradas/validar:
+    post:
+      tags: [Entradas]
+      operationId: validarEntrada
+      summary: Validar una entrada y marcarla como utilizada
+      description: Requiere rol `administrador`. La operación es atómica.
+      x-roles: [administrador]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ValidarEntradaRequest' }
+      responses:
+        '200':
+          description: Entrada validada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Entrada' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
   /entradas/{entrada_id}:
     get:
-      tags:
-      - Entradas (cliente)
-      summary: Consultar una entrada
-      description: Devuelve el detalle de una entrada perteneciente al cliente autenticado, incluido su código QR.
-        Solo cliente autenticado propietario de la entrada.
-      x-roles:
-      - cliente
+      tags: [Entradas]
+      operationId: obtenerEntrada
+      summary: Obtener una entrada
+      description: El usuario accede a entradas propias; el administrador, a cualquiera.
+      x-roles: [usuario, administrador]
       parameters:
-      - $ref: '#/components/parameters/EntradaId'
+        - $ref: '#/components/parameters/EntradaId'
       responses:
         '200':
           description: Entrada encontrada
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Entrada'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-      security:
-      - bearerAuth: []
-  /funciones/{funcion_id}/butacas:
+              schema: { $ref: '#/components/schemas/Entrada' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+
+  /estadisticas:
     get:
-      tags:
-      - Funciones (cliente)
-      summary: Consultar disponibilidad de butacas de una función
-      description: Devuelve las butacas de la sala asociada a la función y su disponibilidad. Solo cliente autenticado.
-      x-roles:
-      - cliente
+      tags: [Estadísticas]
+      operationId: obtenerEstadisticas
+      summary: Consultar estadísticas de ventas y ocupación
+      description: Requiere rol `administrador`.
+      x-roles: [administrador]
       parameters:
-      - $ref: '#/components/parameters/FuncionId'
+        - name: desde
+          in: query
+          required: false
+          description: Debe enviarse junto con `hasta`.
+          schema: { type: string, format: date-time }
+          example: '2026-11-01T00:00:00-03:00'
+        - name: hasta
+          in: query
+          required: false
+          description: Debe enviarse junto con `desde`.
+          schema: { type: string, format: date-time }
+          example: '2026-11-30T23:59:59-03:00'
       responses:
         '200':
-          description: Disponibilidad de butacas
+          description: Estadísticas calculadas
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ButacasFuncionLista'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '403':
-          $ref: '#/components/responses/Error403'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '409':
-          $ref: '#/components/responses/Error409'
-      security:
-      - bearerAuth: []
+              schema: { $ref: '#/components/schemas/Estadisticas' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: 'Se obtiene mediante login definido por Issue #8; el backend valida adicionalmente el rol administrador.'
+      description: Token de `/auth/login` con rol `usuario` o `administrador`.
+
   parameters:
     PeliculaId:
       name: pelicula_id
       in: path
       required: true
-      description: Identificador del recurso
-      schema:
-        type: integer
-        minimum: 1
+      schema: { type: integer, minimum: 1 }
       example: 1
     FuncionId:
       name: funcion_id
       in: path
       required: true
-      description: Identificador del recurso
-      schema:
-        type: integer
-        minimum: 1
-      example: 1
+      schema: { type: integer, minimum: 1 }
+      example: 3
     SalaId:
       name: sala_id
       in: path
       required: true
-      description: Identificador del recurso
-      schema:
-        type: integer
-        minimum: 1
-      example: 1
+      schema: { type: integer, minimum: 1 }
+      example: 2
     ServicioId:
       name: servicio_id
       in: path
       required: true
-      description: Identificador del recurso
-      schema:
-        type: integer
-        minimum: 1
-      example: 1
+      schema: { type: integer, minimum: 1 }
+      example: 4
+    CompraId:
+      name: compra_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 25
+    EntradaId:
+      name: entrada_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 99
+
   responses:
     Error400:
-      description: Datos inválidos
+      description: Solicitud inválida
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     Error401:
-      description: Falta autenticación
+      description: Token ausente o inválido, o credenciales incorrectas
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     Error403:
-      description: Sin permisos de administrador
+      description: El usuario no tiene permiso para la operación
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     Error404:
       description: Recurso no encontrado
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     Error409:
-      description: Conflicto de negocio
+      description: Conflicto con el estado del recurso o una regla de negocio
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
+
   schemas:
-    UsuarioRegister:
-      type: object
-      required:
-      - nombre
-      - email
-      - password
-      properties:
-        nombre:
-          type: string
-          example: Juan Pérez
-        email:
-          type: string
-          format: email
-          example: juan.perez@example.com
-        password:
-          type: string
-          format: password
-          example: ClaveSegura123!
-
-    LoginRequest:
-      type: object
-      required:
-      - email
-      - password
-      properties:
-        email:
-          type: string
-          format: email
-          example: juan.perez@example.com
-        password:
-          type: string
-          format: password
-          example: ClaveSegura123!
-
-    LoginResponse:
-      type: object
-      required:
-      - token
-      - usuario
-      properties:
-        token:
-          type: string
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        usuario:
-          $ref: '#/components/schemas/Usuario'
+    Rol:
+      type: string
+      enum: [usuario, administrador]
+      example: usuario
 
     Usuario:
       type: object
-      required:
-      - id
-      - nombre
-      - email
-      - rol
+      required: [id, nombre, email, rol]
       properties:
-        id:
-          type: integer
-          example: 1
-        nombre:
-          type: string
-          example: Juan Pérez
-        email:
-          type: string
-          format: email
-          example: juan.perez@example.com
-        rol:
-          type: string
-          enum:
-          - cliente
-          - administrador
-          example: cliente
+        id: { type: integer, minimum: 1, example: 7 }
+        nombre: { type: string, example: Ana Pérez }
+        email: { type: string, format: email, example: ana@example.com }
+        rol: { $ref: '#/components/schemas/Rol' }
 
-    PeliculaCartelera:
+    RegistroRequest:
       type: object
-      required:
-      - id
-      - titulo
-      - duracion_minutos
+      additionalProperties: false
+      required: [nombre, email, password]
       properties:
-        id:
-          type: integer
-          example: 1
-        titulo:
+        nombre: { type: string, minLength: 1, maxLength: 120, example: Ana Pérez }
+        email: { type: string, format: email, example: ana@example.com }
+        password:
           type: string
-          example: Cinema Paradiso
-        sinopsis:
-          type: string
-          example: Un cineasta recuerda su infancia en un pequeño pueblo italiano.
-        poster_url:
-          type: string
-          format: uri
-          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
-        duracion_minutos:
-          type: integer
-          example: 155
-        clasificacion:
-          type: string
-          example: +13
-        generos:
-          type: array
-          items:
-            type: string
-          example:
-          - Drama
-          - Romance
+          format: password
+          minLength: 8
+          writeOnly: true
+          example: clave-segura-123
 
-    CarteleraLista:
+    LoginRequest:
       type: object
-      required:
-      - peliculas
+      additionalProperties: false
+      required: [email, password]
       properties:
-        peliculas:
-          type: array
-          items:
-            $ref: '#/components/schemas/PeliculaCartelera'
+        email: { type: string, format: email, example: ana@example.com }
+        password: { type: string, format: password, writeOnly: true, example: clave-segura-123 }
 
-    FuncionCarteleraItem:
+    LoginResponse:
       type: object
-      required:
-      - id
-      - sala_numero
-      - local_nombre
-      - fecha_hora
-      - precio
+      required: [access_token, token_type, expires_in, usuario]
       properties:
-        id:
-          type: integer
-          example: 10
-        local_id:
-          type: integer
-          example: 1
-        local_nombre:
-          type: string
-          example: Cine Paradiso Abasto
-        sala_numero:
-          type: integer
-          example: 2
-        fecha_hora:
-          type: string
-          format: date-time
-          description: Fecha y hora unificada en formato ISO 8601 (requisito obligatorio cátedra)
-          example: '2026-11-15T20:30:00-03:00'
-        precio:
-          type: integer
-          example: 5000
-
-    PeliculaDetalleCartelera:
-      type: object
-      required:
-      - id
-      - titulo
-      - funciones_disponibles
-      properties:
-        id:
-          type: integer
-          example: 1
-        titulo:
-          type: string
-          example: Cinema Paradiso
-        sinopsis:
-          type: string
-          example: Un cineasta recuerda su infancia en un pequeño pueblo italiano.
-        poster_url:
-          type: string
-          format: uri
-          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
-        duracion_minutos:
-          type: integer
-          example: 155
-        clasificacion:
-          type: string
-          example: +13
-        generos:
-          type: array
-          items:
-            type: string
-          example:
-          - Drama
-          - Romance
-        funciones_disponibles:
-          type: array
-          items:
-            $ref: '#/components/schemas/FuncionCarteleraItem'
-
-    ButacaItem:
-      type: object
-      required:
-      - id
-      - fila
-      - columna
-      - ocupada
-      properties:
-        id:
-          type: integer
-          example: 12
-        fila:
-          type: string
-          example: C
-        columna:
-          type: integer
-          example: 4
-        ocupada:
-          type: boolean
-          example: false
-
-    DisponibilidadButacas:
-      type: object
-      required:
-      - funcion_id
-      - total_butacas
-      - butacas_libres
-      - butacas
-      properties:
-        funcion_id:
-          type: integer
-          example: 10
-        total_butacas:
-          type: integer
-          example: 60
-        butacas_libres:
-          type: integer
-          example: 45
-        butacas:
-          type: array
-          items:
-            $ref: '#/components/schemas/ButacaItem'
+        access_token: { type: string, readOnly: true, example: eyJhbGciOiJIUzI1NiJ9... }
+        token_type: { type: string, enum: [Bearer], example: Bearer }
+        expires_in: { type: integer, minimum: 1, example: 3600 }
+        usuario: { $ref: '#/components/schemas/Usuario' }
 
     PeliculaExterna:
       type: object
-      required:
-      - id_externo
-      - titulo
+      required: [id_externo, titulo]
       properties:
-        id_externo:
-          type: integer
-          example: 238
-          description: ID en la API externa elegida (por ejemplo TMDB)
-        titulo:
-          type: string
-          example: El padrino
-        sinopsis:
-          type: string
-          example: Historia de una familia mafiosa.
-        poster_url:
-          type: string
-          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
-          format: uri
+        id_externo: { type: integer, example: 238 }
+        titulo: { type: string, example: El padrino }
+        sinopsis: { type: string, nullable: true, example: Historia de una familia mafiosa. }
+        poster_url: { type: string, format: uri, nullable: true, example: 'https://image.tmdb.org/t/p/w500/ejemplo.jpg' }
+
     Pelicula:
       type: object
+      required: [id, titulo, sinopsis, poster_url, duracion_minutos, clasificacion, genero, activa]
       properties:
-        id:
-          type: integer
-          example: 1
-        id_externo:
-          type: integer
-          example: 238
-        titulo:
-          type: string
-          example: El padrino
-        sinopsis:
-          type: string
-          example: Historia de una familia mafiosa.
-        poster_url:
-          type: string
-          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
-          format: uri
-        duracion_minutos:
-          type: integer
-          example: 175
-        clasificacion:
-          type: string
-          example: '+16'
-        genero:
-          type: string
-          example: Drama
-          description: Género principal para simplificar estadísticas
-        activa:
-          type: boolean
-          example: true
+        id: { type: integer, minimum: 1, example: 1 }
+        id_externo: { type: integer, nullable: true, example: 238 }
+        titulo: { type: string, example: El padrino }
+        sinopsis: { type: string, example: Historia de una familia mafiosa. }
+        poster_url: { type: string, format: uri, example: 'https://image.tmdb.org/t/p/w500/ejemplo.jpg' }
+        duracion_minutos: { type: integer, minimum: 1, example: 175 }
+        clasificacion: { type: string, example: '+16' }
+        genero: { type: string, example: Drama }
+        activa: { type: boolean, example: true }
+
     PeliculaCreate:
       type: object
-      required:
-      - titulo
-      - sinopsis
-      - poster_url
-      - duracion_minutos
-      - clasificacion
-      - genero
+      additionalProperties: false
+      required: [titulo, sinopsis, poster_url, duracion_minutos, clasificacion, genero]
       properties:
-        id_externo:
-          type: integer
-          example: 238
-          description: Opcional; identifica la película en la API externa
-        titulo:
-          type: string
-          example: El padrino
-        sinopsis:
-          type: string
-          example: Historia de una familia mafiosa.
-        poster_url:
-          type: string
-          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
-          format: uri
-        duracion_minutos:
-          type: integer
-          example: 175
-          minimum: 1
-        clasificacion:
-          type: string
-          example: '+16'
-        genero:
-          type: string
-          example: Drama
+        id_externo: { type: integer, example: 238 }
+        titulo: { type: string, minLength: 1, example: El padrino }
+        sinopsis: { type: string, minLength: 1, example: Historia de una familia mafiosa. }
+        poster_url: { type: string, format: uri, example: 'https://image.tmdb.org/t/p/w500/ejemplo.jpg' }
+        duracion_minutos: { type: integer, minimum: 1, example: 175 }
+        clasificacion: { type: string, minLength: 1, example: '+16' }
+        genero: { type: string, minLength: 1, example: Drama }
+
     PeliculaUpdate:
       type: object
+      additionalProperties: false
+      minProperties: 1
       properties:
-        titulo:
-          type: string
-          example: El padrino
-        sinopsis:
-          type: string
-          example: Nueva sinopsis
-        poster_url:
-          type: string
-          example: https://image.tmdb.org/t/p/w500/ejemplo.jpg
-          format: uri
-        duracion_minutos:
-          type: integer
-          example: 175
-          minimum: 1
-        clasificacion:
-          type: string
-          example: '+16'
-        genero:
-          type: string
-          example: Drama
-        activa:
-          type: boolean
-          example: false
-          description: Desactivar sin borrar historial
+        titulo: { type: string, minLength: 1 }
+        sinopsis: { type: string, minLength: 1 }
+        poster_url: { type: string, format: uri }
+        duracion_minutos: { type: integer, minimum: 1 }
+        clasificacion: { type: string, minLength: 1 }
+        genero: { type: string, minLength: 1 }
+        activa: { type: boolean }
+
     PeliculasExternasLista:
       type: object
+      required: [peliculas]
       properties:
         peliculas:
           type: array
-          items:
-            $ref: '#/components/schemas/PeliculaExterna'
+          items: { $ref: '#/components/schemas/PeliculaExterna' }
+
     PeliculasLista:
       type: object
+      required: [peliculas]
       properties:
         peliculas:
           type: array
-          items:
-            $ref: '#/components/schemas/Pelicula'
+          items: { $ref: '#/components/schemas/Pelicula' }
+
+    EstadoFuncion:
+      type: string
+      enum: [programada, cancelada]
+      example: programada
+
     Funcion:
       type: object
+      required: [id, pelicula_id, sala_id, fecha_hora, precio, estado]
       properties:
-        id:
-          type: integer
-          example: 3
-        pelicula_id:
-          type: integer
-          example: 1
-        sala_id:
-          type: integer
-          example: 2
-        fecha_hora:
-          type: string
-          example: '2026-11-15T20:30:00-03:00'
-          format: date-time
+        id: { type: integer, minimum: 1, example: 3 }
+        pelicula_id: { type: integer, minimum: 1, example: 1 }
+        sala_id: { type: integer, minimum: 1, example: 2 }
+        fecha_hora: { type: string, format: date-time, example: '2026-11-15T20:30:00-03:00' }
         precio:
           type: integer
+          minimum: 0
+          description: Precio de una entrada en pesos argentinos enteros.
           example: 5000
-          description: Precio en pesos argentinos enteros, supuesto del equipo
-        estado:
-          type: string
-          example: programada
-          enum:
-          - programada
-          - cancelada
+        estado: { $ref: '#/components/schemas/EstadoFuncion' }
+
     FuncionCreate:
       type: object
-      required:
-      - pelicula_id
-      - sala_id
-      - fecha_hora
-      - precio
+      additionalProperties: false
+      required: [pelicula_id, sala_id, fecha_hora, precio]
       properties:
-        pelicula_id:
-          type: integer
-          example: 1
-        sala_id:
-          type: integer
-          example: 2
-        fecha_hora:
-          type: string
-          example: '2026-11-15T20:30:00-03:00'
-          format: date-time
-        precio:
-          type: integer
-          example: 5000
-          minimum: 0
+        pelicula_id: { type: integer, minimum: 1, example: 1 }
+        sala_id: { type: integer, minimum: 1, example: 2 }
+        fecha_hora: { type: string, format: date-time, example: '2026-11-15T20:30:00-03:00' }
+        precio: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 5000 }
+        estado:
+          allOf:
+            - $ref: '#/components/schemas/EstadoFuncion'
+          default: programada
+
     FuncionUpdate:
       type: object
+      additionalProperties: false
+      minProperties: 1
       properties:
-        fecha_hora:
-          type: string
-          example: '2026-11-15T21:00:00-03:00'
-          format: date-time
-        precio:
-          type: integer
-          example: 5500
-          minimum: 0
-        estado:
-          type: string
-          example: cancelada
-          enum:
-          - programada
-          - cancelada
+        pelicula_id: { type: integer, minimum: 1 }
+        sala_id: { type: integer, minimum: 1 }
+        fecha_hora: { type: string, format: date-time }
+        precio: { type: integer, minimum: 0, description: Pesos argentinos enteros. }
+        estado: { $ref: '#/components/schemas/EstadoFuncion' }
+
     FuncionesLista:
       type: object
+      required: [funciones]
       properties:
         funciones:
           type: array
-          items:
-            $ref: '#/components/schemas/Funcion'
+          items: { $ref: '#/components/schemas/Funcion' }
+
     Sala:
       type: object
+      required: [id, local_id, nombre, filas, butacas_por_fila, capacidad, activa]
       properties:
-        id:
-          type: integer
-          example: 2
-        local_id:
-          type: integer
-          example: 1
-        nombre:
-          type: string
-          example: Sala 2
-        filas:
-          type: integer
-          example: 8
-        butacas_por_fila:
-          type: integer
-          example: 10
-        capacidad:
-          type: integer
-          example: 80
-          description: Calculada como filas × butacas_por_fila
-        activa:
-          type: boolean
-          example: true
+        id: { type: integer, minimum: 1, example: 2 }
+        local_id: { type: integer, minimum: 1, example: 1 }
+        nombre: { type: string, example: Sala 2 }
+        filas: { type: integer, minimum: 1, example: 8 }
+        butacas_por_fila: { type: integer, minimum: 1, example: 10 }
+        capacidad: { type: integer, minimum: 1, readOnly: true, example: 80 }
+        activa: { type: boolean, example: true }
+
     SalaCreate:
       type: object
-      required:
-      - local_id
-      - nombre
-      - filas
-      - butacas_por_fila
+      additionalProperties: false
+      required: [local_id, nombre, filas, butacas_por_fila]
       properties:
-        local_id:
-          type: integer
-          example: 1
-        nombre:
-          type: string
-          example: Sala 2
-        filas:
-          type: integer
-          example: 8
-          minimum: 1
-        butacas_por_fila:
-          type: integer
-          example: 10
-          minimum: 1
+        local_id: { type: integer, minimum: 1, example: 1 }
+        nombre: { type: string, minLength: 1, example: Sala 2 }
+        filas: { type: integer, minimum: 1, example: 8 }
+        butacas_por_fila: { type: integer, minimum: 1, example: 10 }
+
     SalaUpdate:
       type: object
+      additionalProperties: false
+      minProperties: 1
       properties:
-        nombre:
-          type: string
-          example: Sala 2 renovada
-        filas:
-          type: integer
-          example: 9
-          minimum: 1
-        butacas_por_fila:
-          type: integer
-          example: 10
-          minimum: 1
-        activa:
-          type: boolean
-          example: false
+        nombre: { type: string, minLength: 1 }
+        filas: { type: integer, minimum: 1 }
+        butacas_por_fila: { type: integer, minimum: 1 }
+        activa: { type: boolean }
+
     SalasLista:
       type: object
+      required: [salas]
       properties:
         salas:
           type: array
-          items:
-            $ref: '#/components/schemas/Sala'
+          items: { $ref: '#/components/schemas/Sala' }
+
+    EstadoButaca:
+      type: string
+      enum: [disponible, ocupada]
+      example: disponible
+
+    ButacaFuncion:
+      type: object
+      required: [id, fila, numero, estado]
+      properties:
+        id: { type: integer, minimum: 1, example: 17 }
+        fila: { type: string, example: B }
+        numero: { type: integer, minimum: 1, example: 7 }
+        estado: { $ref: '#/components/schemas/EstadoButaca' }
+
+    ButacasFuncionLista:
+      type: object
+      required: [funcion_id, butacas]
+      properties:
+        funcion_id: { type: integer, minimum: 1, example: 3 }
+        butacas:
+          type: array
+          items: { $ref: '#/components/schemas/ButacaFuncion' }
+
     Servicio:
       type: object
+      required: [id, nombre, descripcion, precio, activo]
       properties:
-        id:
-          type: integer
-          example: 4
-        nombre:
-          type: string
-          example: Combo pochoclos
-        descripcion:
-          type: string
-          example: Pochoclos y gaseosa
-        precio:
-          type: integer
-          example: 4500
-        activo:
-          type: boolean
-          example: true
+        id: { type: integer, minimum: 1, example: 4 }
+        nombre: { type: string, example: Combo pochoclos }
+        descripcion: { type: string, example: Pochoclos y gaseosa }
+        precio: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 4500 }
+        activo: { type: boolean, example: true }
+
     ServicioCreate:
       type: object
-      required:
-      - nombre
-      - precio
+      additionalProperties: false
+      required: [nombre, precio]
       properties:
-        nombre:
-          type: string
-          example: Combo pochoclos
-        descripcion:
-          type: string
-          example: Pochoclos y gaseosa
-        precio:
-          type: integer
-          example: 4500
-          minimum: 0
+        nombre: { type: string, minLength: 1, example: Combo pochoclos }
+        descripcion: { type: string, minLength: 1, example: Pochoclos y gaseosa }
+        precio: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 4500 }
+
     ServicioUpdate:
       type: object
+      additionalProperties: false
+      minProperties: 1
       properties:
-        nombre:
-          type: string
-          example: Combo familiar
-        descripcion:
-          type: string
-          example: Pochoclos grandes y dos gaseosas
-        precio:
-          type: integer
-          example: 6000
-          minimum: 0
+        nombre: { type: string, minLength: 1 }
+        descripcion: { type: string, minLength: 1 }
+        precio: { type: integer, minimum: 0, description: Pesos argentinos enteros. }
+        activo: { type: boolean }
+
     ServiciosLista:
       type: object
+      required: [servicios]
       properties:
         servicios:
           type: array
-          items:
-            $ref: '#/components/schemas/Servicio'
-    OcupacionFuncion:
+          items: { $ref: '#/components/schemas/Servicio' }
+
+    ServicioSeleccionado:
       type: object
+      additionalProperties: false
+      required: [servicio_id, cantidad]
       properties:
-        funcion_id:
-          type: integer
-          example: 3
-        butacas_vendidas:
-          type: integer
-          example: 45
-        capacidad:
-          type: integer
-          example: 80
-        porcentaje:
-          type: number
-          example: 56.25
-          format: float
-    OcupacionPelicula:
-      type: object
-      properties:
-        pelicula_id:
-          type: integer
-          example: 1
-        butacas_vendidas:
-          type: integer
-          example: 125
-        capacidad_total_funciones:
-          type: integer
-          example: 240
-        porcentaje:
-          type: number
-          example: 52.08
-          format: float
-    VentasGenero:
-      type: object
-      properties:
-        genero:
-          type: string
-          example: Drama
-        total_ventas:
-          type: integer
-          example: 200000
-          description: Importe en ARS enteros
-    VentasFranja:
-      type: object
-      properties:
-        franja:
-          type: string
-          example: 18:00-21:00
-        entradas_vendidas:
-          type: integer
-          example: 72
-    Estadisticas:
-      type: object
-      properties:
-        ocupacion_por_funcion:
-          type: array
-          items:
-            $ref: '#/components/schemas/OcupacionFuncion'
-        ocupacion_por_pelicula:
-          type: array
-          items:
-            $ref: '#/components/schemas/OcupacionPelicula'
-        ventas_por_genero:
-          type: array
-          items:
-            $ref: '#/components/schemas/VentasGenero'
-        franjas_horarias:
-          type: array
-          items:
-            $ref: '#/components/schemas/VentasFranja'
-        cancelaciones:
-          type: integer
-          example: 12
-          minimum: 0
-    ValidarEntradaRequest:
-      type: object
-      required:
-      - codigo_qr
-      - funcion_id
-      properties:
-        codigo_qr:
-          type: string
-          example: QRCINE-8e6f11
-          description: Token único codificado en el QR; no debe contener datos sensibles
-        funcion_id:
-          type: integer
-          example: 3
-          description: Función que se está controlando en el acceso
-    ValidarEntradaResponse:
-      type: object
-      required:
-      - entrada_id
-      - funcion_id
-      - estado
-      - mensaje
-      properties:
-        entrada_id:
-          type: integer
-          example: 99
-        funcion_id:
-          type: integer
-          example: 3
-        estado:
-          type: string
-          example: utilizada
-          enum:
-          - utilizada
-        mensaje:
-          type: string
-          example: Ingreso permitido
-    CreacionResponse:
-      type: object
-      required:
-      - id
-      - mensaje
-      properties:
-        id:
-          type: integer
-          example: 1
-        mensaje:
-          type: string
-          example: Recurso creado correctamente
-    ButacaFuncion:
-      type: object
-      required:
-      - butaca_id
-      - fila
-      - numero
-      - estado
-      properties:
-        butaca_id:
-          type: integer
-          example: 12
-        fila:
-          type: string
-          example: B
-        numero:
-          type: integer
-          example: 4
-        estado:
-          type: string
-          enum:
-          - disponible
-          - ocupada
-          example: disponible
-    ButacasFuncionLista:
-      type: object
-      properties:
-        funcion_id:
-          type: integer
-          example: 3
-        butacas:
-          type: array
-          items:
-            $ref: '#/components/schemas/ButacaFuncion'
+        servicio_id: { type: integer, minimum: 1, example: 4 }
+        cantidad: { type: integer, minimum: 1, example: 2 }
+
+    MedioPago:
+      type: string
+      enum: [tarjeta, efectivo, transferencia]
+      example: tarjeta
+
+    EstadoCompra:
+      type: string
+      enum: [confirmada, cancelada]
+      example: confirmada
+
     CompraCreate:
       type: object
-      required:
-      - funcion_id
-      - butaca_ids
+      additionalProperties: false
+      required: [funcion_id, butaca_ids, medio_pago]
       properties:
-        funcion_id:
-          type: integer
-          minimum: 1
-          example: 3
-          description: Función para la que se compran las entradas.
-          butaca_ids:
+        funcion_id: { type: integer, minimum: 1, example: 3 }
+        butaca_ids:
           type: array
           minItems: 1
           uniqueItems: true
-          items:
-            type: integer
-            minimum: 1
-          example:
-          - 12
-          - 13
-          description: Identificadores de butacas numeradas. Todas deben pertenecer a la sala de la función y estar
-            disponibles.
-    Entrada:
+          items: { type: integer, minimum: 1 }
+          example: [17, 18]
+        servicios:
+          type: array
+          default: []
+          uniqueItems: true
+          description: Una entrada por servicio adicional seleccionado; no se repiten identificadores.
+          items: { $ref: '#/components/schemas/ServicioSeleccionado' }
+        medio_pago: { $ref: '#/components/schemas/MedioPago' }
+
+    CompraUpdate:
       type: object
-      required:
-      - id
-      - compra_id
-      - funcion_id
-      - butaca_id
-      - precio
-      - estado
+      additionalProperties: false
+      required: [estado]
       properties:
-        id:
-          type: integer
-          example: 101
-        compra_id:
-          type: integer
-          example: 42
-        funcion_id:
-          type: integer
-          example: 3
-        butaca_id:
-          type: integer
-          example: 12
-        precio:
-          type: integer
-          minimum: 0
-          example: 5000
-          description: Precio de esta entrada en pesos argentinos enteros, registrado al momento de la compra.
-        codigo_qr:
-          type: string
-          example: QRCINE-a8f7c2
-          description: Token único para validar el ingreso; no debe contener datos sensibles.
-        estado:
-          type: string
-          enum:
-          - emitida
-          - utilizada
-          - cancelada
-          example: emitida
+        estado: { type: string, enum: [cancelada], example: cancelada }
+        motivo: { type: string, maxLength: 500, example: No podré asistir. }
+
+    CompraServicio:
+      type: object
+      required: [servicio_id, nombre, cantidad, precio_unitario, subtotal]
+      properties:
+        servicio_id: { type: integer, minimum: 1, example: 4 }
+        nombre: { type: string, example: Combo pochoclos }
+        cantidad: { type: integer, minimum: 1, example: 2 }
+        precio_unitario: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 4500 }
+        subtotal: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 9000 }
+
     Compra:
       type: object
-      required:
-      - id
-      - usuario_id
-      - funcion_id
-      - estado
-      - total
-      - fecha_hora
+      required: [id, usuario_id, funcion_id, estado, medio_pago, fecha_hora, total_entradas, total_servicios, total, servicios, entradas]
       properties:
-        id:
-          type: integer
-          example: 42
-        usuario_id:
-        type: integer
-          example: 7
-          description: Identificador del usuario autenticado que realizó la compra.
-        funcion_id:
-          type: integer
-          example: 3
-        estado:
-          type: string
-          enum:
-          - confirmada
-          - cancelada
-          example: confirmada
-        total:
-          type: integer
-          minimum: 0
-          example: 10000
-          description: Importe total en pesos argentinos enteros.
-        fecha_hora:
-          type: string
-          format: date-time
-          example: '2026-11-15T18:30:00-03:00'
+        id: { type: integer, minimum: 1, example: 25 }
+        usuario_id: { type: integer, minimum: 1, example: 7 }
+        funcion_id: { type: integer, minimum: 1, example: 3 }
+        estado: { $ref: '#/components/schemas/EstadoCompra' }
+        medio_pago: { $ref: '#/components/schemas/MedioPago' }
+        fecha_hora: { type: string, format: date-time, example: '2026-11-02T15:30:00-03:00' }
+        total_entradas: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 10000 }
+        total_servicios: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 9000 }
+        total: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 19000 }
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/CompraServicio' }
         entradas:
           type: array
-          items:
-            $ref: '#/components/schemas/Entrada'
-    CompraResponse:
-      allOf:
-      - $ref: '#/components/schemas/Compra'
-      - type: object
-        required:
-        - mensaje
-        properties:
-          mensaje:
-            type: string
-            example: Compra confirmada correctamente
+          items: { $ref: '#/components/schemas/Entrada' }
+
     ComprasLista:
       type: object
+      required: [compras]
       properties:
         compras:
           type: array
-          items:
-            $ref: '#/components/schemas/Compra'
+          items: { $ref: '#/components/schemas/Compra' }
+
+    EstadoEntrada:
+      type: string
+      enum: [vigente, utilizada, cancelada]
+      example: vigente
+
+    Entrada:
+      type: object
+      required: [id, compra_id, usuario_id, funcion_id, butaca, codigo_qr, estado]
+      properties:
+        id: { type: integer, minimum: 1, example: 99 }
+        compra_id: { type: integer, minimum: 1, example: 25 }
+        usuario_id: { type: integer, minimum: 1, example: 7 }
+        funcion_id: { type: integer, minimum: 1, example: 3 }
+        butaca: { $ref: '#/components/schemas/ButacaFuncion' }
+        codigo_qr:
+          type: string
+          readOnly: true
+          description: Token opaco único, sin datos personales.
+          example: QRCINE-8e6f11
+        estado: { $ref: '#/components/schemas/EstadoEntrada' }
+        utilizada_en:
+          type: string
+          format: date-time
+          nullable: true
+          readOnly: true
+          example: '2026-11-15T20:25:00-03:00'
+
     EntradasLista:
       type: object
+      required: [entradas]
       properties:
         entradas:
           type: array
-          items:
-            $ref: '#/components/schemas/Entrada'
-    CompraCancelacionResponse:
+          items: { $ref: '#/components/schemas/Entrada' }
+
+    ValidarEntradaRequest:
       type: object
-      required:
-      - id
-      - estado
-      - mensaje
+      additionalProperties: false
+      required: [codigo_qr, funcion_id]
       properties:
-        id:
-          type: integer
-          example: 42
-        estado:
-          type: string
-          enum:
-          - cancelada
-          example: cancelada
+        codigo_qr: { type: string, minLength: 1, example: QRCINE-8e6f11 }
+        funcion_id: { type: integer, minimum: 1, example: 3 }
+
+    OcupacionFuncion:
+      type: object
+      required: [funcion_id, butacas_vendidas, capacidad, porcentaje]
+      properties:
+        funcion_id: { type: integer, minimum: 1, example: 3 }
+        butacas_vendidas: { type: integer, minimum: 0, example: 45 }
+        capacidad: { type: integer, minimum: 1, example: 80 }
+        porcentaje: { type: number, format: float, minimum: 0, maximum: 100, example: 56.25 }
+
+    OcupacionPelicula:
+      type: object
+      required: [pelicula_id, butacas_vendidas, capacidad_total_funciones, porcentaje]
+      properties:
+        pelicula_id: { type: integer, minimum: 1, example: 1 }
+        butacas_vendidas: { type: integer, minimum: 0, example: 125 }
+        capacidad_total_funciones: { type: integer, minimum: 0, example: 240 }
+        porcentaje: { type: number, format: float, minimum: 0, maximum: 100, example: 52.08 }
+
+    VentasGenero:
+      type: object
+      required: [genero, total_ventas]
+      properties:
+        genero: { type: string, example: Drama }
+        total_ventas: { type: integer, minimum: 0, description: Pesos argentinos enteros., example: 200000 }
+
+    VentasFranja:
+      type: object
+      required: [franja, entradas_vendidas]
+      properties:
+        franja: { type: string, example: '18:00-21:00' }
+        entradas_vendidas: { type: integer, minimum: 0, example: 72 }
+
+    Estadisticas:
+      type: object
+      required: [ocupacion_por_funcion, ocupacion_por_pelicula, ventas_por_genero, franjas_horarias, cancelaciones]
+      properties:
+        ocupacion_por_funcion:
+          type: array
+          items: { $ref: '#/components/schemas/OcupacionFuncion' }
+        ocupacion_por_pelicula:
+          type: array
+          items: { $ref: '#/components/schemas/OcupacionPelicula' }
+        ventas_por_genero:
+          type: array
+          items: { $ref: '#/components/schemas/VentasGenero' }
+        franjas_horarias:
+          type: array
+          items: { $ref: '#/components/schemas/VentasFranja' }
+        cancelaciones: { type: integer, minimum: 0, example: 12 }
+
+    ErrorDetalle:
+      type: object
+      required: [campo, mensaje]
+      properties:
+        campo: { type: string, example: butaca_ids }
+        mensaje: { type: string, example: Una de las butacas ya está ocupada. }
+
     Error:
       type: object
-      required:
-      - codigo
-      - mensaje
+      required: [codigo, mensaje]
       properties:
-        codigo:
-          type: string
-          example: ERROR_VALIDACION
-        mensaje:
-          type: string
-          example: Los datos enviados no son válidos
+        codigo: { type: string, example: CONFLICTO_BUTACA }
+        mensaje: { type: string, example: No fue posible completar la operación. }
+        detalles:
+          type: array
+          items: { $ref: '#/components/schemas/ErrorDetalle' }
