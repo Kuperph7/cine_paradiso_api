@@ -13,4 +13,3 @@ def buscar_pelicula_por_id(conexion, pelicula_id):
         return cursor.fetchone()
     finally:
         cursor.close()
-
