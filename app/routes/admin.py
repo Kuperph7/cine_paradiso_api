@@ -1,12 +1,21 @@
+"""Rutas de administración del sistema."""
+
 from flask import Blueprint, jsonify, request
 
 from app.errors import ApiError
 from app.security import obtener_identidad_opcional, requerir_administrador
+from app.services.entradas_service import validar_entrada_qr
+from app.validators.auth_validators import validar_header_autorizacion
 from app.services.admin_service import (
     actualizar_pelicula as actualizar_pelicula_service,
     buscar_peliculas_externas as buscar_peliculas_externas_service,
     crear_pelicula as crear_pelicula_service,
     listar_peliculas as listar_peliculas_service,
+    obtener_estadisticas as obtener_estadisticas_service,
+    listar_servicios,
+    crear_servicio,
+    modificar_servicio,
+    eliminar_servicio,
 )
 from app.validators.admin_validators import (
     validar_actualizacion_pelicula,
@@ -14,28 +23,34 @@ from app.validators.admin_validators import (
     validar_creacion_pelicula,
     validar_filtros_peliculas,
     validar_pelicula_id,
-)
-
-
-admin_bp = Blueprint("admin", __name__)
-"""Rutas de administración del sistema."""
-from flask import Blueprint, request, jsonify
-from app.validators.auth_validators import validar_header_autorizacion
-from app.validators.admin_validators import (
+    validar_filtros_estadisticas,
     validar_creacion_servicio,
     validar_actualizacion_servicio,
     validar_entrada_qr_request,
 )
-from app.services.admin_service import (
-    listar_servicios,
-    crear_servicio,
-    modificar_servicio,
-    eliminar_servicio,
-)
-from app.services.entradas_service import validar_entrada_qr
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
+def _identidad_administrador():
+    identidad = obtener_identidad_opcional()
+
+    if identidad is None:
+        raise ApiError(
+            401,
+            "AUTENTICACION_REQUERIDA",
+            "Autenticación requerida",
+            "Debe iniciar sesión para realizar esta operación.",
+        )
+
+    if identidad.get("rol") != "administrador":
+        raise ApiError(
+            403,
+            "PERMISO_DENEGADO",
+            "Permiso denegado",
+            "Esta operación requiere permisos de administrador.",
+        )
+
+    return identidad
 
 @admin_bp.route("/servicios", methods=["GET"])
 def get_servicios():
@@ -131,4 +146,19 @@ def actualizar_pelicula(pelicula_id):
     validar_pelicula_id(pelicula_id)
     cambios = validar_actualizacion_pelicula(request.get_json(silent=True))
     return jsonify(actualizar_pelicula_service(pelicula_id, cambios)), 200
+
+@admin_bp.route("/estadisticas",methods=["GET"],)
+@admin_bp.route("/admin/estadisticas",methods=["GET"],)
+def obtener_estadisticas():
+    _identidad_administrador()
+
+    filtros = validar_filtros_estadisticas(
+        request.args
+    )
+
+    resultado = obtener_estadisticas_service(
+        filtros
+    )
+
+    return jsonify(resultado), 200
 
