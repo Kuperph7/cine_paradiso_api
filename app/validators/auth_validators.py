@@ -32,13 +32,3 @@ def validar_login_usuario(data: dict):
         raise ApiError(400, "ERROR_VALIDACION", "Datos inválidos", "El cuerpo de la solicitud debe ser un JSON válido.")
     if not data.get("email") or not data.get("password"):
         raise ApiError(400, "ERROR_VALIDACION", "Datos incompletos", "Email y contraseña son obligatorios.")
-
-
-def validar_header_autorizacion(auth_header: str) -> str:
-    """Valida la presencia y formato del encabezado Authorization Bearer."""
-    if not auth_header:
-        raise ApiError(401, "NO_AUTENTICADO", "Falta autenticación", "Se requiere el encabezado Authorization.")
-    partes = auth_header.strip().split()
-    if len(partes) != 2 or partes[0].lower() != "bearer":
-        raise ApiError(401, "TOKEN_INVALIDO", "Token inválido", "El formato del token debe ser 'Bearer <token>'.")
-    return partes[1]

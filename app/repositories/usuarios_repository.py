@@ -15,7 +15,7 @@ def obtener_usuario_por_email(email: str):
         conn.close()
 
 
-def crear_usuario(nombre: str, email: str, password_hash: str, rol: str = "cliente") -> int:
+def crear_usuario(nombre: str, email: str, password_hash: str, rol: str) -> int:
     """Inserta un nuevo usuario en la base de datos y retorna su id."""
     conn = get_db_connection()
     cursor = conn.cursor()
