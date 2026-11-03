@@ -14,13 +14,14 @@ def error_response(error):
     return (
         jsonify(
             {
-                "errors": [
+                "codigo": error.code,
+                "mensaje": error.message,
+                "detalles": [
                     {
-                        "code": error.code,
-                        "message": error.message,
-                        "description": error.description,
+                        "campo": "general",
+                        "mensaje": error.description,
                     }
-                ]
+                ],
             }
         ),
         error.status,
