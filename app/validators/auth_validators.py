@@ -1,7 +1,11 @@
 """Validaciones de autenticación y perfiles."""
 import re
 from app.errors import ApiError
+from app.validators.common import validate_choice
 
+
+USER_ROLES = frozenset({"cliente", "administrador"})
+DEFAULT_USER_ROLE = "cliente"
 
 def validar_registro_usuario(data: dict):
     """Valida los campos necesarios para registrar un cliente."""
@@ -42,3 +46,5 @@ def validar_header_autorizacion(auth_header: str) -> str:
     if len(partes) != 2 or partes[0].lower() != "bearer":
         raise ApiError(401, "TOKEN_INVALIDO", "Token inválido", "El formato del token debe ser 'Bearer <token>'.")
     return partes[1]
+def validate_role(value):
+    return validate_choice(value, "rol", USER_ROLES)
