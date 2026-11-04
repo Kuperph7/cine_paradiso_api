@@ -2,7 +2,11 @@
 from flask import Blueprint, jsonify, request
 
 from app.errors import ApiError
-from app.security import obtener_identidad_opcional, requerir_administrador
+from app.security import (
+    es_administrador,
+    obtener_identidad_opcional,
+    requerir_administrador,
+)
 
 from app.services.cartelera_service import (
     consultar_peliculas,
@@ -58,12 +62,10 @@ def consultar_butacas(funcion_id):
 @cartelera_bp.route("/funciones", methods=["GET"])
 def listar_funciones():
     identidad = obtener_identidad_opcional()
-    es_administrador = bool(
-        identidad and identidad.get("rol") == "administrador"
-    )
+    usuario_es_administrador = es_administrador(identidad)
     filtros = validar_filtros_funciones(request.args)
 
-    if filtros["estado"] is not None and not es_administrador:
+    if filtros["estado"] is not None and not usuario_es_administrador:
         if identidad is None:
             raise ApiError(
                 401,
@@ -78,7 +80,7 @@ def listar_funciones():
             "El filtro estado es exclusivo del rol administrador.",
         )
 
-    resultado = listar_funciones_service(filtros, es_administrador)
+    resultado = listar_funciones_service(filtros, usuario_es_administrador)
     return jsonify(resultado), 200
 
 

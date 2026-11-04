@@ -3,9 +3,12 @@
 from flask import Blueprint, jsonify, request
 
 from app.errors import ApiError
-from app.security import obtener_identidad_opcional, requerir_administrador
+from app.security import (
+    es_administrador,
+    obtener_identidad_opcional,
+    requerir_administrador,
+)
 from app.services.entradas_service import validar_entrada_qr
-from app.validators.auth_validators import validar_header_autorizacion
 from app.services.admin_service import (
     actualizar_pelicula as actualizar_pelicula_service,
     buscar_peliculas_externas as buscar_peliculas_externas_service,
@@ -31,82 +34,61 @@ from app.validators.admin_validators import (
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
-def _identidad_administrador():
-    identidad = obtener_identidad_opcional()
-
-    if identidad is None:
-        raise ApiError(
-            401,
-            "AUTENTICACION_REQUERIDA",
-            "Autenticación requerida",
-            "Debe iniciar sesión para realizar esta operación.",
-        )
-
-    if identidad.get("rol") != "administrador":
-        raise ApiError(
-            403,
-            "PERMISO_DENEGADO",
-            "Permiso denegado",
-            "Esta operación requiere permisos de administrador.",
-        )
-
-    return identidad
-
 @admin_bp.route("/servicios", methods=["GET"])
 def get_servicios():
     """Retorna la lista de todos los servicios para el administrador."""
-    token = validar_header_autorizacion(request.headers.get("Authorization"))
-    resultado = listar_servicios(token)
+    requerir_administrador()
+    resultado = listar_servicios()
     return jsonify(resultado), 200
 
 
 @admin_bp.route("/servicios", methods=["POST"])
 def post_servicio():
     """Registra un nuevo servicio adicional para todas las salas."""
-    token = validar_header_autorizacion(request.headers.get("Authorization"))
+    requerir_administrador()
     data = request.get_json()
     validar_creacion_servicio(data)
-    resultado = crear_servicio(token, data)
+    resultado = crear_servicio(data)
     return jsonify(resultado), 201
 
 
 @admin_bp.route("/servicios/<int:servicio_id>", methods=["PATCH"])
 def patch_servicio(servicio_id: int):
     """Modifica los datos de un servicio adicional existente."""
-    token = validar_header_autorizacion(request.headers.get("Authorization"))
+    requerir_administrador()
     data = request.get_json()
     validar_actualizacion_servicio(data)
-    modificar_servicio(token, servicio_id, data)
+    modificar_servicio(servicio_id, data)
     return "", 204
 
 
 @admin_bp.route("/servicios/<int:servicio_id>", methods=["DELETE"])
 def delete_servicio(servicio_id: int):
     """Realiza la baja lógica de un servicio desactivándolo."""
-    token = validar_header_autorizacion(request.headers.get("Authorization"))
-    eliminar_servicio(token, servicio_id)
+    requerir_administrador()
+    eliminar_servicio(servicio_id)
     return "", 204
 
 
 @admin_bp.route("/entradas/validar", methods=["POST"])
 def post_validar_entrada():
     """Verifica el QR de una entrada y la marca como utilizada si el acceso es válido."""
-    token = validar_header_autorizacion(request.headers.get("Authorization"))
+    requerir_administrador()
     data = request.get_json()
     validar_entrada_qr_request(data)
-    resultado = validar_entrada_qr(token, data["codigo_qr"].strip(), data["funcion_id"])
+    resultado = validar_entrada_qr(
+        data["codigo_qr"].strip(), data["funcion_id"]
+    )
     return jsonify(resultado), 200
 
 
 @admin_bp.route("/peliculas", methods=["GET"])
 def listar_peliculas():
     identidad = obtener_identidad_opcional()
-    es_administrador = bool(
-        identidad and identidad.get("rol") == "administrador"
-    )
+    usuario_es_administrador = es_administrador(identidad)
     filtros = validar_filtros_peliculas(request.args)
 
-    if filtros["incluir_inactivas"] and not es_administrador:
+    if filtros["incluir_inactivas"] and not usuario_es_administrador:
         if identidad is None:
             raise ApiError(
                 401,
@@ -122,7 +104,7 @@ def listar_peliculas():
             "El filtro incluir_inactivas es exclusivo del rol administrador.",
         )
 
-    resultado = listar_peliculas_service(filtros, es_administrador)
+    resultado = listar_peliculas_service(filtros, usuario_es_administrador)
     return jsonify(resultado), 200
 
 
@@ -150,7 +132,7 @@ def actualizar_pelicula(pelicula_id):
 @admin_bp.route("/estadisticas",methods=["GET"],)
 @admin_bp.route("/admin/estadisticas",methods=["GET"],)
 def obtener_estadisticas():
-    _identidad_administrador()
+    requerir_administrador()
 
     filtros = validar_filtros_estadisticas(
         request.args

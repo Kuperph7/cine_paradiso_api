@@ -2,8 +2,8 @@ from flask import Blueprint, request, jsonify
 from app.validators.auth_validators import (
     validar_registro_usuario,
     validar_login_usuario,
-    validar_header_autorizacion,
 )
+from app.security import requerir_usuario_autenticado
 from app.services.auth_service import (
     registrar_cliente,
     iniciar_sesion,
@@ -41,7 +41,6 @@ def logout():
 @auth_bp.route("/perfil", methods=["GET"])
 def perfil():
     """Obtiene el perfil del usuario autenticado a partir del token JWT."""
-    auth_header = request.headers.get("Authorization")
-    token = validar_header_autorizacion(auth_header)
-    usuario = obtener_perfil_usuario(token)
+    identidad = requerir_usuario_autenticado()
+    usuario = obtener_perfil_usuario(identidad["usuario_id"])
     return jsonify(usuario), 200

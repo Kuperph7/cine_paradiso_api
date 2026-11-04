@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.errors import ApiError
-from app.security import obtener_identidad_opcional
+from app.security import es_administrador, requerir_acceso_compras
 from app.services.compras_service import (
     cancelar_compra as cancelar_compra_service,
     crear_compra as crear_compra_service,
@@ -19,47 +19,13 @@ from app.validators.compras_validators import (
 compras_bp = Blueprint("compras", __name__)
 
 
-def _identidad_autenticada():
-    identidad = obtener_identidad_opcional()
-    if identidad is None:
-        raise ApiError(
-            401,
-            "AUTENTICACION_REQUERIDA",
-            "Autenticación requerida",
-            "Debe iniciar sesión para realizar esta operación.",
-        )
-
-    if identidad.get("rol") not in {"usuario", "cliente", "administrador"}:
-        raise ApiError(
-            403,
-            "PERMISO_DENEGADO",
-            "Permiso denegado",
-            "El rol autenticado no puede operar con compras.",
-        )
-
-    usuario_id = identidad.get("usuario_id")
-    if (
-        isinstance(usuario_id, bool)
-        or not isinstance(usuario_id, int)
-        or usuario_id <= 0
-    ):
-        raise ApiError(
-            401,
-            "TOKEN_INVALIDO",
-            "Autenticación requerida",
-            "El token no contiene un identificador de usuario válido.",
-        )
-
-    return identidad
-
-
 @compras_bp.route("/compras", methods=["GET"])
 def listar_compras():
-    identidad = _identidad_autenticada()
+    identidad = requerir_acceso_compras()
     filtros = validar_filtros_compras(request.args)
-    es_administrador = identidad["rol"] == "administrador"
+    usuario_es_administrador = es_administrador(identidad)
 
-    if filtros["usuario_id"] is not None and not es_administrador:
+    if filtros["usuario_id"] is not None and not usuario_es_administrador:
         raise ApiError(
             403,
             "PERMISO_DENEGADO",
@@ -69,7 +35,7 @@ def listar_compras():
 
     resultado = listar_compras_service(
         identidad["usuario_id"],
-        es_administrador,
+        usuario_es_administrador,
         filtros,
     )
     return jsonify(resultado), 200
@@ -77,7 +43,7 @@ def listar_compras():
 
 @compras_bp.route("/compras", methods=["POST"])
 def crear_compra():
-    identidad = _identidad_autenticada()
+    identidad = requerir_acceso_compras()
     datos = validar_creacion_compra(request.get_json(silent=True))
     resultado = crear_compra_service(identidad["usuario_id"], datos)
     return jsonify(resultado), 201
@@ -85,25 +51,25 @@ def crear_compra():
 
 @compras_bp.route("/compras/<int:compra_id>", methods=["GET"])
 def obtener_compra(compra_id):
-    identidad = _identidad_autenticada()
+    identidad = requerir_acceso_compras()
     validar_compra_id(compra_id)
     resultado = obtener_compra_service(
         compra_id,
         identidad["usuario_id"],
-        identidad["rol"] == "administrador",
+        es_administrador(identidad),
     )
     return jsonify(resultado), 200
 
 
 @compras_bp.route("/compras/<int:compra_id>", methods=["PATCH"])
 def cancelar_compra(compra_id):
-    identidad = _identidad_autenticada()
+    identidad = requerir_acceso_compras()
     validar_compra_id(compra_id)
     datos = validar_cancelacion_compra(request.get_json(silent=True))
     resultado = cancelar_compra_service(
         compra_id,
         identidad["usuario_id"],
-        identidad["rol"] == "administrador",
+        es_administrador(identidad),
         datos["motivo"],
     )
     return jsonify(resultado), 200
