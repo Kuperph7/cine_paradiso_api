@@ -1,5 +1,7 @@
 -- Cine Paradiso - esquema inicial de base de datos
 -- MySQL 8.0+
+-- Los roles, estados, importes, cantidades y reglas de fechas se validan en
+-- Flask. MySQL conserva solamente las restricciones de integridad estructural.
 
 CREATE DATABASE IF NOT EXISTS cine_paradiso
     CHARACTER SET utf8mb4
@@ -22,8 +24,6 @@ CREATE TABLE IF NOT EXISTS salas (
     filas INT UNSIGNED NOT NULL,
     butacas_por_fila INT UNSIGNED NOT NULL,
     activa BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT chk_salas_filas CHECK (filas > 0),
-    CONSTRAINT chk_salas_butacas_por_fila CHECK (butacas_por_fila > 0),
     CONSTRAINT fk_salas_local
         FOREIGN KEY (local_id) REFERENCES locales(id),
     UNIQUE KEY uq_salas_local_nombre (local_id, nombre)
@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS butacas (
     fila VARCHAR(3) NOT NULL,
     numero INT UNSIGNED NOT NULL,
     activa BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT chk_butacas_numero CHECK (numero > 0),
     CONSTRAINT fk_butacas_sala
         FOREIGN KEY (sala_id) REFERENCES salas(id),
     UNIQUE KEY uq_butacas_sala_fila_numero (sala_id, fila, numero)
@@ -53,12 +52,6 @@ CREATE TABLE IF NOT EXISTS peliculas (
     disponible_desde DATETIME NULL,
     disponible_hasta DATETIME NULL,
     activa BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT chk_peliculas_duracion CHECK (duracion_minutos > 0),
-    CONSTRAINT chk_peliculas_disponibilidad CHECK (
-        disponible_desde IS NULL
-        OR disponible_hasta IS NULL
-        OR disponible_desde < disponible_hasta
-    ),
     UNIQUE KEY uq_peliculas_id_externo (id_externo)
 );
 
@@ -68,8 +61,7 @@ CREATE TABLE IF NOT EXISTS funciones (
     sala_id INT UNSIGNED NOT NULL,
     fecha_hora DATETIME NOT NULL,
     precio DECIMAL(10, 2) NOT NULL,
-    estado ENUM('programada', 'cancelada', 'finalizada') NOT NULL DEFAULT 'programada',
-    CONSTRAINT chk_funciones_precio CHECK (precio >= 0),
+    estado VARCHAR(20) NOT NULL,
     CONSTRAINT fk_funciones_pelicula
         FOREIGN KEY (pelicula_id) REFERENCES peliculas(id),
     CONSTRAINT fk_funciones_sala
@@ -82,7 +74,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre VARCHAR(150) NOT NULL,
     email VARCHAR(254) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    rol ENUM('cliente', 'administrador') NOT NULL DEFAULT 'cliente',
+    rol VARCHAR(20) NOT NULL,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_usuarios_email (email)
@@ -94,7 +86,6 @@ CREATE TABLE IF NOT EXISTS servicios (
     descripcion VARCHAR(500) NULL,
     precio DECIMAL(10, 2) NOT NULL,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT chk_servicios_precio CHECK (precio >= 0),
     UNIQUE KEY uq_servicios_nombre (nombre)
 );
 
@@ -102,7 +93,7 @@ CREATE TABLE IF NOT EXISTS butacas_funcion (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     funcion_id INT UNSIGNED NOT NULL,
     butaca_id INT UNSIGNED NOT NULL,
-    estado ENUM('disponible', 'reservada', 'ocupada') NOT NULL DEFAULT 'disponible',
+    estado VARCHAR(20) NOT NULL,
     reserva_hasta DATETIME NULL,
     CONSTRAINT fk_butacas_funcion_funcion
         FOREIGN KEY (funcion_id) REFERENCES funciones(id),
@@ -116,9 +107,8 @@ CREATE TABLE IF NOT EXISTS compras (
     usuario_id INT UNSIGNED NOT NULL,
     funcion_id INT UNSIGNED NOT NULL,
     fecha_hora DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    estado ENUM('confirmada', 'cancelada') NOT NULL DEFAULT 'confirmada',
+    estado VARCHAR(20) NOT NULL,
     total DECIMAL(10, 2) NOT NULL,
-    CONSTRAINT chk_compras_total CHECK (total >= 0),
     CONSTRAINT fk_compras_usuario
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
     CONSTRAINT fk_compras_funcion
@@ -131,10 +121,9 @@ CREATE TABLE IF NOT EXISTS entradas (
     butaca_funcion_id INT UNSIGNED NOT NULL,
     precio DECIMAL(10, 2) NOT NULL,
     codigo_qr VARCHAR(255) NOT NULL,
-    estado ENUM('emitida', 'utilizada', 'cancelada') NOT NULL DEFAULT 'emitida',
+    estado VARCHAR(20) NOT NULL,
     fecha_hora_validacion DATETIME NULL,
     fecha_hora_cancelacion DATETIME NULL,
-    CONSTRAINT chk_entradas_precio CHECK (precio >= 0),
     CONSTRAINT fk_entradas_compra
         FOREIGN KEY (compra_id) REFERENCES compras(id),
     CONSTRAINT fk_entradas_butaca_funcion
@@ -149,9 +138,6 @@ CREATE TABLE IF NOT EXISTS compras_servicios (
     cantidad INT UNSIGNED NOT NULL,
     precio_unitario DECIMAL(10, 2) NOT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
-    CONSTRAINT chk_compras_servicios_cantidad CHECK (cantidad > 0),
-    CONSTRAINT chk_compras_servicios_precio CHECK (precio_unitario >= 0),
-    CONSTRAINT chk_compras_servicios_subtotal CHECK (subtotal >= 0),
     CONSTRAINT fk_compras_servicios_compra
         FOREIGN KEY (compra_id) REFERENCES compras(id),
     CONSTRAINT fk_compras_servicios_servicio
