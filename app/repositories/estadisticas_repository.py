@@ -191,3 +191,6 @@ def obtener_total_cancelaciones(conexion, filtros):
         return cursor.fetchone()
     finally:
         cursor.close()
+
+def obtener_ocupacion_por_funcion():
+    return print("Falta esta funcion jeje")
