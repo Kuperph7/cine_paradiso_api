@@ -1,5 +1,5 @@
 """Servicios de generación y validación de entradas."""
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.repositories import entradas_repository
 
 
@@ -13,8 +13,7 @@ def consultar_entrada(usuario_id: int, entrada_id: int) -> dict:
     """Retorna el detalle de una entrada si pertenece al cliente autenticado."""
     entrada = entradas_repository.obtener_entrada_por_id(entrada_id, usuario_id)
     if not entrada:
-        raise ApiError(404, "ENTRADA_NO_ENCONTRADA", "Entrada no encontrada",
-                       "La entrada no existe o no pertenece al usuario autenticado.")
+        return error_response(crear_error(404, "ENTRADA_NO_ENCONTRADA", "Entrada no encontrada", "La entrada no existe o no pertenece al usuario autenticado."))
     return entrada
 
 
@@ -23,22 +22,18 @@ def validar_entrada_qr(codigo_qr: str, funcion_id: int) -> dict:
     entrada = entradas_repository.obtener_entrada_por_qr(codigo_qr, funcion_id)
 
     if not entrada:
-        raise ApiError(404, "ENTRADA_NO_ENCONTRADA", "QR inválido",
-                       "El código QR no corresponde a ninguna entrada de esta función.")
+        return error_response(crear_error(404, "ENTRADA_NO_ENCONTRADA", "QR inválido", "El código QR no corresponde a ninguna entrada de esta función."))
 
     if entrada["estado"] == "cancelada":
-        raise ApiError(409, "ENTRADA_CANCELADA", "Entrada cancelada",
-                       "Esta entrada fue cancelada y no permite el ingreso.")
+        return error_response(crear_error(409, "ENTRADA_CANCELADA", "Entrada cancelada", "Esta entrada fue cancelada y no permite el ingreso."))
 
     if entrada["estado"] == "utilizada":
-        raise ApiError(409, "ENTRADA_YA_UTILIZADA", "Entrada ya utilizada",
-                       "Esta entrada ya fue registrada como utilizada en una validación anterior.")
+        return error_response(crear_error(409, "ENTRADA_YA_UTILIZADA", "Entrada ya utilizada", "Esta entrada ya fue registrada como utilizada en una validación anterior."))
 
     filas_afectadas = entradas_repository.marcar_entrada_utilizada(entrada["id"])
 
     if filas_afectadas == 0:
-        raise ApiError(409, "CONFLICTO_VALIDACION", "Conflicto de validación",
-                       "La entrada no pudo marcarse como utilizada. Es posible que ya haya sido validada simultáneamente.")
+        return error_response(crear_error(409, "CONFLICTO_VALIDACION", "Conflicto de validación", "La entrada no pudo marcarse como utilizada. Es posible que ya haya sido validada simultáneamente."))
 
     return {
         "entrada_id": entrada["id"],

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.security import es_administrador, requerir_acceso_compras
 from app.services.compras_service import (
     cancelar_compra as cancelar_compra_service,
@@ -26,11 +26,13 @@ def listar_compras():
     usuario_es_administrador = es_administrador(identidad)
 
     if filtros["usuario_id"] is not None and not usuario_es_administrador:
-        raise ApiError(
-            403,
-            "PERMISO_DENEGADO",
-            "Permiso denegado",
-            "El filtro usuario_id es exclusivo del rol administrador.",
+        return error_response(
+            crear_error(
+                403,
+                "PERMISO_DENEGADO",
+                "Permiso denegado",
+                "El filtro usuario_id es exclusivo del rol administrador.",
+            )
         )
 
     resultado = listar_compras_service(

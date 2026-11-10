@@ -3,9 +3,8 @@ from flask import current_app
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.integrations.peliculas_api import (
-    PeliculasApiError,
     buscar_peliculas as buscar_en_tmdb,
 )
 from app.repositories import servicios_repository
@@ -36,7 +35,7 @@ def crear_servicio(data: dict) -> dict:
     """Crea un nuevo servicio adicional verificando que no exista duplicación."""
     nombre = data["nombre"].strip()
     if servicios_repository.obtener_servicio_por_nombre(nombre):
-        raise ApiError(409, "CONFLICTO_SERVICIO", "Servicio existente", "Ya existe un servicio con ese nombre.")
+        return error_response(crear_error(409, "CONFLICTO_SERVICIO", "Servicio existente", "Ya existe un servicio con ese nombre."))
 
     descripcion = data.get("descripcion", "").strip()
     precio = data["precio"]
@@ -51,7 +50,7 @@ def modificar_servicio(servicio_id: int, data: dict):
     """Actualiza la información de un servicio verificando su existencia."""
     servicio = servicios_repository.obtener_servicio_por_id(servicio_id)
     if not servicio:
-        raise ApiError(404, "SERVICIO_NO_ENCONTRADO", "Servicio no encontrado", "El servicio especificado no existe.")
+        return error_response(crear_error(404, "SERVICIO_NO_ENCONTRADO", "Servicio no encontrado", "El servicio especificado no existe."))
 
     campos = {}
     if "nombre" in data:
@@ -69,7 +68,7 @@ def eliminar_servicio(servicio_id: int):
     """Desactiva lógicamente un servicio verificando su existencia."""
     servicio = servicios_repository.obtener_servicio_por_id(servicio_id)
     if not servicio:
-        raise ApiError(404, "SERVICIO_NO_ENCONTRADO", "Servicio no encontrado", "El servicio especificado no existe.")
+        return error_response(crear_error(404, "SERVICIO_NO_ENCONTRADO", "Servicio no encontrado", "El servicio especificado no existe."))
 
     servicios_repository.dar_de_baja_servicio(servicio_id)
 
@@ -103,32 +102,37 @@ def listar_peliculas(filtros, es_administrador=False):
 def buscar_peliculas_externas(titulo):
     api_key = current_app.config.get("MOVIES_API_KEY")
     if not api_key:
-        raise ApiError(
-            503,
-            "CATALOGO_NO_CONFIGURADO",
-            "Catálogo externo no disponible",
-            "Falta configurar MOVIES_API_KEY.",
+        return error_response(
+            crear_error(
+                503,
+                "CATALOGO_NO_CONFIGURADO",
+                "Catálogo externo no disponible",
+                "Falta configurar MOVIES_API_KEY.",
+            ) 
         )
 
     try:
         peliculas = buscar_en_tmdb(titulo, api_key)
-    except PeliculasApiError as error:
-        raise ApiError(
-            502,
-            "ERROR_CATALOGO_EXTERNO",
-            "Catálogo externo no disponible",
-            "No fue posible consultar el catálogo externo.",
-        ) from error
-
+    except RuntimeError:
+        return error_response(
+            crear_error(
+                502,
+                "ERROR_CATALOGO_EXTERNO",
+                "Catálogo externo no disponible",
+                "No fue posible consultar el catálogo externo.",
+            )
+        )
     return {"peliculas": peliculas}
 
 
 def _conflicto_pelicula():
-    return ApiError(
-        409,
-        "CONFLICTO_PELICULA",
-        "No fue posible guardar la película",
-        "La película entra en conflicto con los datos existentes.",
+    return error_response(
+        crear_error(
+            409,
+            "CONFLICTO_PELICULA",
+            "No fue posible guardar la película",
+            "La película entra en conflicto con los datos existentes.",
+        )
     )
 
 
@@ -139,11 +143,13 @@ def crear_pelicula(datos):
         if id_externo is not None and buscar_pelicula_por_id_externo(
             conexion, id_externo
         ):
-            raise ApiError(
-                409,
-                "PELICULA_DUPLICADA",
-                "Película ya registrada",
-                "Ya existe una película con ese id_externo.",
+            return error_response(
+                crear_error(
+                    409,
+                    "PELICULA_DUPLICADA",
+                    "Película ya registrada",
+                    "Ya existe una película con ese id_externo.",
+                )
             )
 
         pelicula_id = insertar_pelicula(conexion, datos)
@@ -165,13 +171,15 @@ def actualizar_pelicula(pelicula_id, cambios):
     try:
         pelicula = buscar_pelicula_por_id(conexion, pelicula_id)
         if pelicula is None:
-            raise ApiError(
-                404,
-                "PELICULA_NO_ENCONTRADA",
-                "Película no encontrada",
-                "No existe una película con ese identificador.",
+            return error_response(
+                crear_error(
+                    404,
+                    "PELICULA_NO_ENCONTRADA",
+                    "Película no encontrada",
+                    "No existe una película con ese identificador.",
+                )
             )
-
+        
         guardar_cambios_pelicula(conexion, pelicula_id, cambios)
         pelicula = buscar_pelicula_por_id(conexion, pelicula_id)
         conexion.commit()

@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.security import (
     es_administrador,
     obtener_identidad_opcional,
@@ -90,18 +90,23 @@ def listar_peliculas():
 
     if filtros["incluir_inactivas"] and not usuario_es_administrador:
         if identidad is None:
-            raise ApiError(
-                401,
-                "AUTENTICACION_REQUERIDA",
-                "Autenticación requerida",
-                "El filtro incluir_inactivas requiere autenticación "
-                "de administrador.",
+            return error_response(
+                crear_error(
+                    401,
+                    "AUTENTICACION_REQUERIDA",
+                    "Autenticación requerida",
+                    "El filtro incluir_inactivas requiere autenticación "
+                    "de administrador.",
+                )
+                
             )
-        raise ApiError(
-            403,
-            "PERMISO_DENEGADO",
-            "Permiso denegado",
-            "El filtro incluir_inactivas es exclusivo del rol administrador.",
+        return error_response(
+            crear_error(
+                403,
+                "PERMISO_DENEGADO",
+                "Permiso denegado",
+                "El filtro incluir_inactivas es exclusivo del rol administrador.",    
+            )    
         )
 
     resultado = listar_peliculas_service(filtros, usuario_es_administrador)

@@ -1,7 +1,7 @@
+
 from flask import Flask
 
-from app.config import Config
-from app.errors import ApiError, error_response
+from app import config
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.cartelera import cartelera_bp
@@ -10,9 +10,10 @@ from app.routes.entradas import entradas_bp
 from app.routes.salas import salas_bp
 
 
-def create_app(config_class=Config):
+def create_app():
     app = Flask(__name__)
-    app.config.from_object(config_class)
+
+    app.config.from_object(config)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cartelera_bp)
@@ -20,7 +21,6 @@ def create_app(config_class=Config):
     app.register_blueprint(entradas_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(salas_bp)
-    app.register_error_handler(ApiError, error_response)
 
     return app
 

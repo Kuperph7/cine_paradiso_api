@@ -3,7 +3,7 @@
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.repositories.salas_repository import (
     activar_butacas,
     actualizar_sala as guardar_cambios_sala,
@@ -45,18 +45,22 @@ def _generar_coordenadas(filas, butacas_por_fila):
 def _validar_local(conexion, local_id):
     local = buscar_local_por_id(conexion, local_id)
     if local is None:
-        raise ApiError(
-            404,
-            "LOCAL_NO_ENCONTRADO",
-            "Local no encontrado",
-            "No existe un local con ese identificador.",
+        return error_response(
+            crear_error(
+                404,
+                "LOCAL_NO_ENCONTRADO",
+                "Local no encontrado",
+                "No existe un local con ese identificador.",
+            )
         )
     if not local["activa"]:
-        raise ApiError(
-            409,
-            "LOCAL_INACTIVO",
-            "Local inactivo",
-            "No se puede habilitar una sala en un local inactivo.",
+        return error_response(
+            crear_error(
+                409,
+                "LOCAL_INACTIVO",
+                "Local inactivo",
+                "No se puede habilitar una sala en un local inactivo.",
+            )
         )
 
 
@@ -67,11 +71,13 @@ def _validar_nombre_disponible(
     excluir_id=None,
 ):
     if existe_sala_con_nombre(conexion, local_id, nombre, excluir_id):
-        raise ApiError(
-            409,
-            "SALA_DUPLICADA",
-            "Sala ya registrada",
-            "Ya existe una sala con ese nombre en el local.",
+        return error_response(
+            crear_error(
+                409,
+                "SALA_DUPLICADA",
+                "Sala ya registrada",
+                "Ya existe una sala con ese nombre en el local.",
+            )
         )
 
 
@@ -96,11 +102,13 @@ def _sincronizar_butacas(conexion, sala_id, filas, butacas_por_fila):
 
 
 def _conflicto_sala():
-    return ApiError(
-        409,
-        "CONFLICTO_SALA",
-        "No fue posible guardar la sala",
-        "La sala entra en conflicto con los datos existentes.",
+    return error_response(
+        crear_error(
+            409,
+            "CONFLICTO_SALA",
+            "No fue posible guardar la sala",
+            "La sala entra en conflicto con los datos existentes.",
+        )
     )
 
 
@@ -147,11 +155,13 @@ def actualizar_sala(sala_id, cambios):
     try:
         sala_actual = buscar_sala_por_id(conexion, sala_id, bloquear=True)
         if sala_actual is None:
-            raise ApiError(
-                404,
-                "SALA_NO_ENCONTRADA",
-                "Sala no encontrada",
-                "No existe una sala con ese identificador.",
+            return error_response(
+                crear_error(
+                    404,
+                    "SALA_NO_ENCONTRADA",
+                    "Sala no encontrada",
+                    "No existe una sala con ese identificador.",
+                )
             )
 
         if cambios.get("activa") is True:

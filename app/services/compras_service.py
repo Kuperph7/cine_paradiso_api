@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.integrations.qr import generar_token_qr
 from app.repositories.compras_repository import (
     agregar_servicios_compra,
@@ -100,21 +100,25 @@ def _completar_compra(conexion, compra):
 
 def _validar_pertenencia(compra, usuario_id, es_administrador):
     if not es_administrador and compra["usuario_id"] != usuario_id:
-        raise ApiError(
-            403,
-            "COMPRA_AJENA",
-            "Permiso denegado",
-            "La compra no pertenece al usuario autenticado.",
+        return error_response(
+            crear_error(
+                403,
+                "COMPRA_AJENA",
+                "Permiso denegado",
+                "La compra no pertenece al usuario autenticado.",
+            )
         )
 
 
 def _validar_funcion(funcion):
     if funcion is None:
-        raise ApiError(
-            404,
-            "FUNCION_NO_ENCONTRADA",
-            "Función no encontrada",
-            "No existe una función con ese identificador.",
+        return error_response(
+            crear_error(
+                404,
+                "FUNCION_NO_ENCONTRADA",
+                "Función no encontrada",
+                "No existe una función con ese identificador.",
+            )
         )
 
     fecha_hora = _fecha_local(funcion["fecha_hora"])
@@ -124,11 +128,13 @@ def _validar_funcion(funcion):
         or not funcion["pelicula_activa"]
         or fecha_hora <= datetime.now(ZONA_HORARIA)
     ):
-        raise ApiError(
-            409,
-            "FUNCION_NO_DISPONIBLE",
-            "Función no disponible",
-            "La función ya no admite compras.",
+        return error_response(
+            crear_error(
+                409,
+                "FUNCION_NO_DISPONIBLE",
+                "Función no disponible",
+                "La función ya no admite compras.",
+            )
         )
 
 
@@ -136,11 +142,13 @@ def _validar_y_bloquear_butacas(conexion, funcion, butaca_ids):
     butacas = bloquear_butacas(conexion, funcion["sala_id"], butaca_ids)
     encontradas = {int(butaca["id"]) for butaca in butacas}
     if encontradas != set(butaca_ids):
-        raise ApiError(
-            404,
-            "BUTACA_NO_ENCONTRADA",
-            "Butaca no encontrada",
-            "Una o más butacas no existen, están inactivas o pertenecen a otra sala.",
+        return error_response(
+            crear_error(
+                404,
+                "BUTACA_NO_ENCONTRADA",
+                "Butaca no encontrada",
+                "Una o más butacas no existen, están inactivas o pertenecen a otra sala.",
+            )
         )
 
     ahora = datetime.now(ZONA_HORARIA)
@@ -154,11 +162,13 @@ def _validar_y_bloquear_butacas(conexion, funcion, butaca_ids):
         reserva_hasta = ocupacion.get("reserva_hasta")
         reserva_vigente = reserva_hasta is None or _fecha_local(reserva_hasta) > ahora
         if ocupacion["estado"] == "ocupada" or (reservada and reserva_vigente):
-            raise ApiError(
-                409,
-                "BUTACA_NO_DISPONIBLE",
-                "Butaca no disponible",
-                "Una de las butacas seleccionadas ya está reservada u ocupada.",
+            return error_response(
+                crear_error(
+                    409,
+                    "BUTACA_NO_DISPONIBLE",
+                    "Butaca no disponible",
+                    "Una de las butacas seleccionadas ya está reservada u ocupada.",
+                )
             )
 
 
@@ -173,22 +183,26 @@ def _preparar_servicios(conexion, seleccionados):
     servicios = buscar_servicios_por_ids(conexion, list(cantidades))
     encontrados = {int(servicio["id"]) for servicio in servicios}
     if encontrados != set(cantidades):
-        raise ApiError(
-            404,
-            "SERVICIO_NO_ENCONTRADO",
-            "Servicio no encontrado",
-            "Uno o más servicios no existen.",
+            return error_response(
+                crear_error(
+                    404,
+                    "SERVICIO_NO_ENCONTRADO",
+                    "Servicio no encontrado",
+                    "Uno o más servicios no existen.",
+                )
         )
 
     preparados = []
     total = 0
     for servicio in servicios:
         if not servicio["activo"]:
-            raise ApiError(
-                409,
-                "SERVICIO_INACTIVO",
-                "Servicio no disponible",
-                "Uno de los servicios seleccionados está inactivo.",
+            return error_response(
+                crear_error(
+                    409,
+                    "SERVICIO_INACTIVO",
+                    "Servicio no disponible",
+                    "Uno de los servicios seleccionados está inactivo.",
+                )
             )
         servicio_id = int(servicio["id"])
         cantidad = cantidades[servicio_id]
@@ -207,11 +221,13 @@ def _preparar_servicios(conexion, seleccionados):
 
 
 def _conflicto_compra():
-    return ApiError(
-        409,
-        "CONFLICTO_COMPRA",
-        "No fue posible completar la compra",
-        "La disponibilidad cambió mientras se procesaba la operación.",
+    return error_response(
+        crear_error(
+            409,
+            "CONFLICTO_COMPRA",
+            "No fue posible completar la compra",
+            "La disponibilidad cambió mientras se procesaba la operación.",
+        )
     )
 
 
@@ -298,11 +314,13 @@ def obtener_compra(compra_id, usuario_id, es_administrador):
     try:
         compra = buscar_compra_por_id(conexion, compra_id)
         if compra is None:
-            raise ApiError(
-                404,
-                "COMPRA_NO_ENCONTRADA",
-                "Compra no encontrada",
-                "No existe una compra con ese identificador.",
+            return error_response(
+                crear_error(
+                    404,
+                    "COMPRA_NO_ENCONTRADA",
+                    "Compra no encontrada",
+                    "No existe una compra con ese identificador.",
+                )
             )
         _validar_pertenencia(compra, usuario_id, es_administrador)
         return _completar_compra(conexion, compra)
@@ -316,39 +334,47 @@ def cancelar_compra(compra_id, usuario_id, es_administrador, motivo=None):
         conexion.start_transaction()
         compra = buscar_compra_por_id(conexion, compra_id, bloquear=True)
         if compra is None:
-            raise ApiError(
-                404,
-                "COMPRA_NO_ENCONTRADA",
-                "Compra no encontrada",
-                "No existe una compra con ese identificador.",
+            return error_response(
+                crear_error(
+                    404,
+                    "COMPRA_NO_ENCONTRADA",
+                    "Compra no encontrada",
+                    "No existe una compra con ese identificador.",
+                )
             )
         _validar_pertenencia(compra, usuario_id, es_administrador)
 
         if compra["estado"] != "confirmada":
-            raise ApiError(
-                409,
-                "COMPRA_YA_CANCELADA",
-                "Compra no cancelable",
-                "La compra ya se encuentra cancelada.",
+            return error_response(
+                crear_error(
+                    409,
+                    "COMPRA_YA_CANCELADA",
+                    "Compra no cancelable",
+                    "La compra ya se encuentra cancelada.",
+                )
             )
 
         inicio_funcion = _fecha_local(compra["funcion_fecha_hora"])
         if inicio_funcion <= datetime.now(ZONA_HORARIA) + PLAZO_CANCELACION:
-            raise ApiError(
-                409,
-                "PLAZO_CANCELACION_VENCIDO",
-                "Compra no cancelable",
-                "La cancelación debe solicitarse al menos una hora antes "
-                "de la función.",
+            return error_response(
+                crear_error(
+                    409,
+                    "PLAZO_CANCELACION_VENCIDO",
+                    "Compra no cancelable",
+                    "La cancelación debe solicitarse al menos una hora antes "
+                    "de la función.",
+                )
             )
 
         entradas = bloquear_entradas_compra(conexion, compra_id)
         if any(entrada["estado"] == "utilizada" for entrada in entradas):
-            raise ApiError(
-                409,
-                "ENTRADA_YA_UTILIZADA",
-                "Compra no cancelable",
-                "La compra contiene una entrada que ya fue utilizada.",
+            return error_response(
+                crear_error(
+                    409,
+                    "ENTRADA_YA_UTILIZADA",
+                    "Compra no cancelable",
+                    "La compra contiene una entrada que ya fue utilizada.",
+                )
             )
 
         guardar_cancelacion_compra(conexion, compra_id, motivo)

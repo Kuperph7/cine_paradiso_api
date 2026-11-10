@@ -1,29 +1,30 @@
 from flask import jsonify
 
 
-class ApiError(Exception):
-    def __init__(self, status, code, message, description):
-        super().__init__(description)
-        self.status = status
-        self.code = code
-        self.message = message
-        self.description = description
-
+def crear_error(status, code, message, description):
+    return {
+        "status": status,
+        "code": code,
+        "message": message,
+        "description": description
+    }
 
 def error_response(error):
+    """
+    Genera una respuesta JSON a partir de un diccionario de error.
+    """
     return (
         jsonify(
             {
-                "codigo": error.code,
-                "mensaje": error.message,
+                "codigo": error["code"],
+                "mensaje": error["message"],
                 "detalles": [
                     {
                         "campo": "general",
-                        "mensaje": error.description,
+                        "mensaje": error["description"],
                     }
                 ],
             }
         ),
-        error.status,
+        error["status"],
     )
-

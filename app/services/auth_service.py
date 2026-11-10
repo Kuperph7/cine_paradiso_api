@@ -1,6 +1,6 @@
 """Servicios de autenticación y perfiles."""
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.errors import ApiError
+from app.errors import crear_error, error_response
 from app.repositories import usuarios_repository
 from app.security import ROL_CLIENTE, generar_token_acceso
 
@@ -13,11 +13,13 @@ def registrar_cliente(data: dict) -> dict:
 
     usuario_existente = usuarios_repository.obtener_usuario_por_email(email)
     if usuario_existente:
-        raise ApiError(
-            status=409,
-            code="CONFLICTO_EMAIL",
-            message="Email ya registrado",
-            description="Ya existe una cuenta con este correo electrónico."
+        return error_response(
+            crear_error(
+                409,
+                "CONFLICTO_EMAIL",
+                "Email ya registrado",
+                "Ya existe una cuenta con este correo electrónico."
+            )
         )
 
     password_hash = generate_password_hash(password)
@@ -43,7 +45,7 @@ def iniciar_sesion(data: dict) -> dict:
     usuario = usuarios_repository.obtener_usuario_por_email(email)
 
     if not usuario or not check_password_hash(usuario["password_hash"], password):
-        raise ApiError(401, "CREDENCIALES_INVALIDAS", "Error de autenticación", "Email o contraseña incorrectos.")
+        return error_response(crear_error(401, "CREDENCIALES_INVALIDAS", "Error de autenticación", "Email o contraseña incorrectos."))
 
     token = generar_token_acceso(usuario)
 
@@ -62,7 +64,7 @@ def obtener_perfil_usuario(usuario_id: int) -> dict:
     """Obtiene el perfil de una identidad previamente autenticada."""
     usuario = usuarios_repository.obtener_usuario_por_id(usuario_id)
     if not usuario:
-        raise ApiError(404, "USUARIO_NO_ENCONTRADO", "Usuario no encontrado", "El usuario asociado al token no existe.")
+        return error_response(crear_error(404, "USUARIO_NO_ENCONTRADO", "Usuario no encontrado", "El usuario asociado al token no existe."))
 
     return {
         "id": usuario["id"],
