@@ -15,6 +15,45 @@ def _filtro_fechas(alias, filtros):
     return condiciones, parametros
 
 
+def obtener_ocupacion_por_funcion(conexion, filtros):
+    condiciones, parametros = _filtro_fechas("f", filtros)
+
+    where = (
+        f"WHERE {' AND '.join(condiciones)}"
+        if condiciones else ""
+    )
+
+    consulta = f"""
+        SELECT
+            f.id AS funcion_id,
+            COUNT(
+                DISTINCT CASE
+                    WHEN c.estado = 'confirmada'
+                     AND e.estado IN ('vigente', 'utilizada')
+                    THEN e.id
+                END
+            ) AS butacas_vendidas,
+            (s.filas * s.butacas_por_fila) AS capacidad
+        FROM funciones AS f
+        INNER JOIN salas AS s
+            ON s.id = f.sala_id
+        LEFT JOIN compras AS c
+            ON c.funcion_id = f.id
+        LEFT JOIN entradas AS e
+            ON e.compra_id = c.id
+        {where}
+        GROUP BY f.id, s.filas, s.butacas_por_fila
+        ORDER BY f.id
+    """
+
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute(consulta, tuple(parametros))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+
+
 def obtener_ocupacion_por_pelicula(conexion, filtros):
     condiciones, parametros = _filtro_fechas("f", filtros)
 
