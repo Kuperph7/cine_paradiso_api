@@ -1,8 +1,19 @@
 """Servicios de autenticación y perfiles."""
-from werkzeug.security import generate_password_hash, check_password_hash
+from mysql.connector import IntegrityError
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from app.errors import ApiError
 from app.repositories import usuarios_repository
 from app.security import ROL_CLIENTE, generar_token_acceso
+
+
+def _error_email_duplicado():
+    return ApiError(
+        status=409,
+        code="CONFLICTO_EMAIL",
+        message="Email ya registrado",
+        description="Ya existe una cuenta con este correo electrónico.",
+    )
 
 
 def registrar_cliente(data: dict) -> dict:
@@ -13,25 +24,25 @@ def registrar_cliente(data: dict) -> dict:
 
     usuario_existente = usuarios_repository.obtener_usuario_por_email(email)
     if usuario_existente:
-        raise ApiError(
-            status=409,
-            code="CONFLICTO_EMAIL",
-            message="Email ya registrado",
-            description="Ya existe una cuenta con este correo electrónico."
-        )
+        raise _error_email_duplicado()
 
     password_hash = generate_password_hash(password)
 
-    nuevo_id = usuarios_repository.crear_usuario(
-        nombre=nombre,
-        email=email,
-        password_hash=password_hash,
-        rol=ROL_CLIENTE
-    )
+    try:
+        nuevo_id = usuarios_repository.crear_usuario(
+            nombre=nombre,
+            email=email,
+            password_hash=password_hash,
+            rol=ROL_CLIENTE,
+        )
+    except IntegrityError as error:
+        # La restricción UNIQUE es la defensa final si dos registros con el
+        # mismo email superan la consulta previa al mismo tiempo.
+        raise _error_email_duplicado() from error
 
     return {
         "id": nuevo_id,
-        "mensaje": "Usuario registrado exitosamente"
+        "mensaje": "Usuario registrado exitosamente",
     }
 
 
@@ -43,7 +54,12 @@ def iniciar_sesion(data: dict) -> dict:
     usuario = usuarios_repository.obtener_usuario_por_email(email)
 
     if not usuario or not check_password_hash(usuario["password_hash"], password):
-        raise ApiError(401, "CREDENCIALES_INVALIDAS", "Error de autenticación", "Email o contraseña incorrectos.")
+        raise ApiError(
+            401,
+            "CREDENCIALES_INVALIDAS",
+            "Error de autenticación",
+            "Email o contraseña incorrectos.",
+        )
 
     token = generar_token_acceso(usuario)
 
@@ -53,8 +69,8 @@ def iniciar_sesion(data: dict) -> dict:
             "id": usuario["id"],
             "nombre": usuario["nombre"],
             "email": usuario["email"],
-            "rol": usuario["rol"]
-        }
+            "rol": usuario["rol"],
+        },
     }
 
 
@@ -62,11 +78,16 @@ def obtener_perfil_usuario(usuario_id: int) -> dict:
     """Obtiene el perfil de una identidad previamente autenticada."""
     usuario = usuarios_repository.obtener_usuario_por_id(usuario_id)
     if not usuario:
-        raise ApiError(404, "USUARIO_NO_ENCONTRADO", "Usuario no encontrado", "El usuario asociado al token no existe.")
+        raise ApiError(
+            404,
+            "USUARIO_NO_ENCONTRADO",
+            "Usuario no encontrado",
+            "El usuario asociado al token no existe.",
+        )
 
     return {
         "id": usuario["id"],
         "nombre": usuario["nombre"],
         "email": usuario["email"],
-        "rol": usuario["rol"]
+        "rol": usuario["rol"],
     }

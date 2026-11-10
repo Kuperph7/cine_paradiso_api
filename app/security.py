@@ -136,7 +136,12 @@ def requerir_administrador():
     """Exige una identidad autenticada con rol administrador."""
     identidad = obtener_identidad_opcional()
     if identidad is None:
-        _error_no_autenticado("Debe iniciar sesión para realizar esta operación.")
+        raise ApiError(
+            401,
+            "AUTENTICACION_REQUERIDA",
+            "Autenticación requerida",
+            "Debe iniciar sesión para realizar esta operación.",
+        )
     if not es_administrador(identidad):
         raise ApiError(
             403,
