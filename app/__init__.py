@@ -1,6 +1,7 @@
+
 from flask import Flask
 
-from app.config import Config
+from app import config
 from app.errors import registrar_manejadores_errores
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
@@ -10,9 +11,10 @@ from app.routes.entradas import entradas_bp
 from app.routes.salas import salas_bp
 from app.routes.servicios import servicios_bp
 
-def create_app(config_class=Config):
+def create_app():
     app = Flask(__name__)
-    app.config.from_object(config_class)
+
+    app.config.from_object(config)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cartelera_bp)
