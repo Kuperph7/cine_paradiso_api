@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
 from app.errors import es_respuesta_error, respuesta_error

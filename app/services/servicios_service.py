@@ -1,5 +1,4 @@
 from app.db import get_db_connection
-from app.errors import ApiError 
 
 from app.repositories.servicios_repository import(
     obtener_todos_los_servicios,
