@@ -84,6 +84,23 @@ def consultar_detalle_pelicula(pelicula_id):
         conexion.close()
 
 
+def consultar_funcion(funcion_id):
+    conexion = get_db_connection()
+
+    try:
+        funcion = buscar_funcion_cartelera(conexion, funcion_id)
+        if funcion is None:
+            raise ApiError(
+                404,
+                "FUNCION_NO_ENCONTRADA",
+                "Función no encontrada",
+                "No existe una función disponible con ese identificador.",
+            )
+        return _serializar_funcion(funcion)
+    finally:
+        conexion.close()
+
+
 # Issue #33 - Disponibilidad de butacas
 def consultar_butacas_funcion(funcion_id):
     conexion = get_db_connection()
@@ -105,20 +122,8 @@ def consultar_butacas_funcion(funcion_id):
             funcion["sala_id"]
         )
 
-        butacas_libres = 0
-
-        for butaca in butacas:
-            estado = butaca["estado"]
-
-            if estado == "disponible":
-                butacas_libres += 1
-
-            butaca["ocupada"] = estado == "ocupada"
-
         return {
             "funcion_id": funcion_id,
-            "total_butacas": len(butacas),
-            "butacas_libres": butacas_libres,
             "butacas": butacas
         }
 

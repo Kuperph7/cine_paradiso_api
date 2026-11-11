@@ -11,6 +11,7 @@ from app.security import (
 from app.services.cartelera_service import (
     consultar_peliculas,
     consultar_detalle_pelicula,
+    consultar_funcion,
     consultar_butacas_funcion,
     actualizar_funcion as actualizar_funcion_service,
     crear_funcion as crear_funcion_service,
@@ -41,15 +42,21 @@ def listar_cartelera():
 
 # Issue #32 - Detalle de una pelicula
 @cartelera_bp.route("/cartelera/<int:pelicula_id>", methods=["GET"])
+@cartelera_bp.route("/peliculas/<int:pelicula_id>", methods=["GET"])
 def detalle_pelicula(pelicula_id):
     resultado = consultar_detalle_pelicula(pelicula_id)
 
     return jsonify(resultado), 200
 
 
+@cartelera_bp.route("/funciones/<int:funcion_id>", methods=["GET"])
+def obtener_funcion(funcion_id):
+    return jsonify(consultar_funcion(funcion_id)), 200
+
+
 # Issue #33 - Butacas de una funcion
 @cartelera_bp.route(
-    "/cartelera/funciones/<int:funcion_id>/butacas",
+    "/funciones/<int:funcion_id>/butacas",
     methods=["GET"]
 )
 def consultar_butacas(funcion_id):
