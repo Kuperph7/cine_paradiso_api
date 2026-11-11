@@ -44,9 +44,4 @@ def actualizar_servicio(servicio_id: int, cambios: dict):
     return obtener_servicio_por_id(servicio_id)
 
 def eliminar_servicio(servicio_id):
-    servicio_actual = obtener_servicio_por_id(servicio_id)
-
-    if servicio_actual is None:
-        return None
-
-    return eliminar_servicio_repository(servicio_actual)
+    return eliminar_servicio_repository(servicio_id)
