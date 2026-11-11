@@ -1,7 +1,8 @@
 # Cine Paradiso API
 
 Backend del sistema de venta de entradas de Cine Paradiso, desarrollado con
-Python, Flask y MySQL.
+Python, Flask y MySQL. El Compose también construye e inicia el frontend Flask
+ubicado en el directorio hermano `cine-paradiso-web`.
 
 ## Levantar el proyecto con Docker
 
@@ -10,7 +11,8 @@ Python, Flask y MySQL.
 - Docker Engine o Docker Desktop.
 - Docker Compose v2, disponible mediante el comando `docker compose`.
 
-No es necesario instalar Python ni MySQL en la computadora.
+No es necesario instalar Python ni MySQL en la computadora. Los directorios
+`cine_paradiso_api` y `cine-paradiso-web` deben conservarse uno junto al otro.
 
 ### Configuración inicial
 
@@ -26,14 +28,15 @@ No es necesario instalar Python ni MySQL en la computadora.
    cp .env.example .env
    ```
 
-3. Revisar `.env` y reemplazar, como mínimo, `SECRET_KEY`, `DB_PASSWORD` y
-   `DB_ROOT_PASSWORD`. Los valores del ejemplo están pensados únicamente para
-   desarrollo local y no deben usarse en producción.
+3. Revisar `.env` y reemplazar, como mínimo, `SECRET_KEY`,
+   `FRONTEND_SECRET_KEY`, `DB_PASSWORD` y `DB_ROOT_PASSWORD`. Los valores del
+   ejemplo están pensados únicamente para desarrollo local y no deben usarse
+   en producción.
 
    `MOVIES_API_KEY` es necesaria para los endpoints que consultan la API
    externa de películas. El resto del backend puede levantarse sin esa clave.
 
-### Iniciar la API y la base de datos
+### Iniciar todo el proyecto
 
 Construir la imagen e iniciar los servicios:
 
@@ -49,7 +52,14 @@ docker compose up --build -d
 
 Durante el primer inicio, MySQL crea la base de datos y ejecuta en orden los
 archivos de `sql/`. Compose espera a que MySQL acepte conexiones antes de
-iniciar Flask.
+iniciar la API, y espera a que la API esté saludable antes de iniciar el
+frontend.
+
+El frontend queda disponible en:
+
+```text
+http://localhost:8080
+```
 
 La API queda disponible en:
 
@@ -66,8 +76,9 @@ curl http://localhost:5000/cartelera
 Como `02_datos_iniciales.sql` todavía no contiene registros, la respuesta
 inicial esperada es una cartelera vacía.
 
-El puerto se puede cambiar en `.env` mediante `API_PORT`. Por ejemplo,
-`API_PORT=8080` publica la API en `http://localhost:8080`.
+Los puertos se pueden cambiar en `.env` mediante `FRONTEND_PORT` y `API_PORT`.
+La comunicación entre contenedores no depende de esos puertos publicados: el
+frontend accede a la API mediante el nombre interno `api`.
 
 ### Estado y logs
 
@@ -88,6 +99,7 @@ O consultar un servicio en particular:
 ```bash
 docker compose logs -f api
 docker compose logs -f db
+docker compose logs -f frontend
 ```
 
 ### Ejecutar las pruebas
@@ -138,8 +150,10 @@ docker compose up --build -d
 ### Solución de problemas
 
 - Si el puerto 5000 está ocupado, cambiar `API_PORT` en `.env`.
+- Si el puerto 8080 está ocupado, cambiar `FRONTEND_PORT` en `.env`.
 - Si la API no inicia, revisar `docker compose logs api` y
   `docker compose logs db`.
+- Si el frontend no inicia, revisar `docker compose logs frontend`.
 - Si se modificó el esquema SQL pero el volumen ya existía, recrear la base con
   `docker compose down -v`. Esto elimina los datos existentes.
 - Si se cambian `DB_USER`, `DB_PASSWORD` o `DB_ROOT_PASSWORD` después del primer
@@ -167,6 +181,8 @@ El archivo `.env` contiene datos locales y no debe subirse al repositorio.
 
 - `api`: aplicación Flask publicada en el puerto configurado por `API_PORT`.
 - `db`: MySQL 8.0, accesible para la API mediante el nombre interno `db`.
+- `frontend`: aplicación web Flask publicada en el puerto configurado por
+  `FRONTEND_PORT` y conectada internamente con `http://api:5000`.
 - `mysql_data`: volumen persistente con los datos de MySQL.
 
 ## Organización

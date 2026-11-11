@@ -52,5 +52,21 @@ services:
       start_period: 10s
     init: true
 
+  frontend:
+    build:
+      context: ../cine-paradiso-web
+      dockerfile: Dockerfile
+    environment:
+      FLASK_DEBUG: ${FRONTEND_FLASK_DEBUG:-false}
+      SECRET_KEY: ${FRONTEND_SECRET_KEY:-change-this-frontend-development-secret}
+      API_BASE_URL: http://api:5000
+    ports:
+      - "${FRONTEND_PORT:-8080}:5001"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+
 volumes:
   mysql_data:
