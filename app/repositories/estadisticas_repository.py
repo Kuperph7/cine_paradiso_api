@@ -1,5 +1,5 @@
-
 """Consultas SQL relacionadas con estadísticas."""
+
 
 def _filtro_fechas(alias, filtros):
     condiciones = []

@@ -1245,7 +1245,9 @@ components:
 
     Error:
       type: object
-      required: [codigo, mensaje]
+      description: Formato uniforme de todas las respuestas de error de la API.
+      additionalProperties: false
+      required: [codigo, mensaje, detalles]
       properties:
         codigo: { type: string, example: CONFLICTO_BUTACA }
         mensaje: { type: string, example: No fue posible completar la operación. }

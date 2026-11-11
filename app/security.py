@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from flask import current_app, request
 
-from app.errors import ApiError
+from app.errors import es_respuesta_error, respuesta_error
 
 
 ALGORITMO_JWT = "HS256"
@@ -18,20 +18,27 @@ ROLES_COMPRAS = (ROL_USUARIO, ROL_CLIENTE, ROL_ADMINISTRADOR)
 
 
 def _error_no_autenticado(descripcion):
-    raise ApiError(401, "TOKEN_INVALIDO", "Autenticación requerida", descripcion)
+    return respuesta_error(
+        401,
+        "TOKEN_INVALIDO",
+        "Autenticación requerida",
+        descripcion,
+    )
 
 
 def _obtener_secreto():
     secreto = current_app.config.get("SECRET_KEY")
     if not secreto:
-        _error_no_autenticado("No fue posible validar el token de acceso.")
+        return _error_no_autenticado("No fue posible validar el token de acceso.")
     return secreto
 
 
 def _extraer_token_bearer(autorizacion):
     partes = autorizacion.strip().split()
     if len(partes) != 2 or partes[0].lower() != "bearer":
-        _error_no_autenticado("Use el encabezado Authorization con el esquema Bearer.")
+        return _error_no_autenticado(
+            "Use el encabezado Authorization con el esquema Bearer."
+        )
     return partes[1]
 
 
@@ -43,35 +50,41 @@ def generar_token_acceso(usuario):
         "rol": usuario["rol"],
         "exp": datetime.now(timezone.utc) + DURACION_TOKEN,
     }
+    secreto = _obtener_secreto()
+    if es_respuesta_error(secreto):
+        return secreto
     return jwt.encode(
         payload,
-        _obtener_secreto(),
+        secreto,
         algorithm=ALGORITMO_JWT,
     )
 
 
 def decodificar_token(token):
     """Valida la firma y vencimiento de un JWT y devuelve su identidad."""
+    secreto = _obtener_secreto()
+    if es_respuesta_error(secreto):
+        return secreto
     try:
         return jwt.decode(
             token,
-            _obtener_secreto(),
+            secreto,
             algorithms=[ALGORITMO_JWT],
         )
-    except jwt.ExpiredSignatureError as error:
-        raise ApiError(
+    except jwt.ExpiredSignatureError:
+        return respuesta_error(
             401,
             "TOKEN_EXPIRADO",
             "Sesión expirada",
             "El token ha expirado. Inicie sesión nuevamente.",
-        ) from error
-    except jwt.InvalidTokenError as error:
-        raise ApiError(
+        )
+    except jwt.InvalidTokenError:
+        return respuesta_error(
             401,
             "TOKEN_INVALIDO",
             "Token inválido",
             "El token de autenticación no es válido.",
-        ) from error
+        )
 
 
 def obtener_identidad_opcional():
@@ -79,14 +92,19 @@ def obtener_identidad_opcional():
     autorizacion = request.headers.get("Authorization")
     if autorizacion is None:
         return None
-    return decodificar_token(_extraer_token_bearer(autorizacion))
+    token = _extraer_token_bearer(autorizacion)
+    if es_respuesta_error(token):
+        return token
+    return decodificar_token(token)
 
 
 def requerir_usuario_autenticado(*roles_permitidos):
     """Exige una identidad con usuario válido y, opcionalmente, un rol permitido."""
     identidad = obtener_identidad_opcional()
+    if es_respuesta_error(identidad):
+        return identidad
     if identidad is None:
-        raise ApiError(
+        return respuesta_error(
             401,
             "AUTENTICACION_REQUERIDA",
             "Autenticación requerida",
@@ -99,7 +117,7 @@ def requerir_usuario_autenticado(*roles_permitidos):
         or not isinstance(usuario_id, int)
         or usuario_id <= 0
     ):
-        raise ApiError(
+        return respuesta_error(
             401,
             "TOKEN_INVALIDO",
             "Autenticación requerida",
@@ -107,7 +125,7 @@ def requerir_usuario_autenticado(*roles_permitidos):
         )
 
     if roles_permitidos and identidad.get("rol") not in roles_permitidos:
-        raise ApiError(
+        return respuesta_error(
             403,
             "PERMISO_DENEGADO",
             "Permiso denegado",
@@ -135,10 +153,17 @@ def es_administrador(identidad):
 def requerir_administrador():
     """Exige una identidad autenticada con rol administrador."""
     identidad = obtener_identidad_opcional()
+    if es_respuesta_error(identidad):
+        return identidad
     if identidad is None:
-        _error_no_autenticado("Debe iniciar sesión para realizar esta operación.")
+        return respuesta_error(
+            401,
+            "AUTENTICACION_REQUERIDA",
+            "Autenticación requerida",
+            "Debe iniciar sesión para realizar esta operación.",
+        )
     if not es_administrador(identidad):
-        raise ApiError(
+        return respuesta_error(
             403,
             "PERMISO_DENEGADO",
             "Permiso denegado",

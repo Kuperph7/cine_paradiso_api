@@ -3,7 +3,7 @@
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import ApiError
+from app.errors import es_respuesta_error, respuesta_error
 from app.repositories.salas_repository import (
     activar_butacas,
     actualizar_sala as guardar_cambios_sala,
@@ -45,14 +45,14 @@ def _generar_coordenadas(filas, butacas_por_fila):
 def _validar_local(conexion, local_id):
     local = buscar_local_por_id(conexion, local_id)
     if local is None:
-        raise ApiError(
+        return respuesta_error(
             404,
             "LOCAL_NO_ENCONTRADO",
             "Local no encontrado",
             "No existe un local con ese identificador.",
         )
     if not local["activa"]:
-        raise ApiError(
+        return respuesta_error(
             409,
             "LOCAL_INACTIVO",
             "Local inactivo",
@@ -67,7 +67,7 @@ def _validar_nombre_disponible(
     excluir_id=None,
 ):
     if existe_sala_con_nombre(conexion, local_id, nombre, excluir_id):
-        raise ApiError(
+        return respuesta_error(
             409,
             "SALA_DUPLICADA",
             "Sala ya registrada",
@@ -96,7 +96,7 @@ def _sincronizar_butacas(conexion, sala_id, filas, butacas_por_fila):
 
 
 def _conflicto_sala():
-    return ApiError(
+    return respuesta_error(
         409,
         "CONFLICTO_SALA",
         "No fue posible guardar la sala",
@@ -116,12 +116,16 @@ def listar_salas(incluir_inactivas=False):
 def crear_sala(datos):
     conexion = get_db_connection()
     try:
-        _validar_local(conexion, datos["local_id"])
-        _validar_nombre_disponible(
+        error = _validar_local(conexion, datos["local_id"])
+        if es_respuesta_error(error):
+            return error
+        error = _validar_nombre_disponible(
             conexion,
             datos["local_id"],
             datos["nombre"],
         )
+        if es_respuesta_error(error):
+            return error
 
         sala_id = insertar_sala(conexion, datos)
         coordenadas = _generar_coordenadas(
@@ -132,9 +136,9 @@ def crear_sala(datos):
         sala = buscar_sala_por_id(conexion, sala_id)
         conexion.commit()
         return _serializar_sala(sala)
-    except IntegrityError as error:
+    except IntegrityError:
         conexion.rollback()
-        raise _conflicto_sala() from error
+        return _conflicto_sala()
     except Exception:
         conexion.rollback()
         raise
@@ -147,7 +151,7 @@ def actualizar_sala(sala_id, cambios):
     try:
         sala_actual = buscar_sala_por_id(conexion, sala_id, bloquear=True)
         if sala_actual is None:
-            raise ApiError(
+            return respuesta_error(
                 404,
                 "SALA_NO_ENCONTRADA",
                 "Sala no encontrada",
@@ -155,14 +159,18 @@ def actualizar_sala(sala_id, cambios):
             )
 
         if cambios.get("activa") is True:
-            _validar_local(conexion, sala_actual["local_id"])
+            error = _validar_local(conexion, sala_actual["local_id"])
+            if es_respuesta_error(error):
+                return error
         if "nombre" in cambios:
-            _validar_nombre_disponible(
+            error = _validar_nombre_disponible(
                 conexion,
                 sala_actual["local_id"],
                 cambios["nombre"],
                 excluir_id=sala_id,
             )
+            if es_respuesta_error(error):
+                return error
 
         distribucion_cambia = (
             "filas" in cambios
@@ -184,9 +192,9 @@ def actualizar_sala(sala_id, cambios):
         sala = buscar_sala_por_id(conexion, sala_id)
         conexion.commit()
         return _serializar_sala(sala)
-    except IntegrityError as error:
+    except IntegrityError:
         conexion.rollback()
-        raise _conflicto_sala() from error
+        return _conflicto_sala()
     except Exception:
         conexion.rollback()
         raise

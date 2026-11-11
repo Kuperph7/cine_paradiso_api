@@ -6,11 +6,6 @@ import requests
 BUSQUEDA_URL = "https://api.themoviedb.org/3/search/movie"
 IMAGEN_BASE_URL = "https://image.tmdb.org/t/p/w500"
 
-
-class PeliculasApiError(Exception):
-    """Indica que TMDB no pudo responder con resultados utilizables."""
-
-
 def buscar_peliculas(titulo, api_key, timeout=5):
     try:
         respuesta = requests.get(
@@ -25,15 +20,15 @@ def buscar_peliculas(titulo, api_key, timeout=5):
         )
         respuesta.raise_for_status()
         contenido = respuesta.json()
-    except (requests.RequestException, ValueError) as error:
-        raise PeliculasApiError("No fue posible consultar TMDB.") from error
+    except (requests.RequestException, ValueError):
+        return None
 
     if not isinstance(contenido, dict):
-        raise PeliculasApiError("TMDB devolvió una respuesta inválida.")
+        return None
 
     resultados = contenido.get("results")
     if not isinstance(resultados, list):
-        raise PeliculasApiError("TMDB devolvió una respuesta inválida.")
+        return None
 
     peliculas = []
     for resultado in resultados:

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import ApiError
+from app.errors import es_respuesta_error, respuesta_error
 from app.integrations.qr import generar_token_qr
 from app.repositories.compras_repository import (
     agregar_servicios_compra,
@@ -100,7 +100,7 @@ def _completar_compra(conexion, compra):
 
 def _validar_pertenencia(compra, usuario_id, es_administrador):
     if not es_administrador and compra["usuario_id"] != usuario_id:
-        raise ApiError(
+        return respuesta_error(
             403,
             "COMPRA_AJENA",
             "Permiso denegado",
@@ -110,7 +110,7 @@ def _validar_pertenencia(compra, usuario_id, es_administrador):
 
 def _validar_funcion(funcion):
     if funcion is None:
-        raise ApiError(
+        return respuesta_error(
             404,
             "FUNCION_NO_ENCONTRADA",
             "Función no encontrada",
@@ -124,7 +124,7 @@ def _validar_funcion(funcion):
         or not funcion["pelicula_activa"]
         or fecha_hora <= datetime.now(ZONA_HORARIA)
     ):
-        raise ApiError(
+        return respuesta_error(
             409,
             "FUNCION_NO_DISPONIBLE",
             "Función no disponible",
@@ -136,7 +136,7 @@ def _validar_y_bloquear_butacas(conexion, funcion, butaca_ids):
     butacas = bloquear_butacas(conexion, funcion["sala_id"], butaca_ids)
     encontradas = {int(butaca["id"]) for butaca in butacas}
     if encontradas != set(butaca_ids):
-        raise ApiError(
+        return respuesta_error(
             404,
             "BUTACA_NO_ENCONTRADA",
             "Butaca no encontrada",
@@ -154,7 +154,7 @@ def _validar_y_bloquear_butacas(conexion, funcion, butaca_ids):
         reserva_hasta = ocupacion.get("reserva_hasta")
         reserva_vigente = reserva_hasta is None or _fecha_local(reserva_hasta) > ahora
         if ocupacion["estado"] == "ocupada" or (reservada and reserva_vigente):
-            raise ApiError(
+            return respuesta_error(
                 409,
                 "BUTACA_NO_DISPONIBLE",
                 "Butaca no disponible",
@@ -173,7 +173,7 @@ def _preparar_servicios(conexion, seleccionados):
     servicios = buscar_servicios_por_ids(conexion, list(cantidades))
     encontrados = {int(servicio["id"]) for servicio in servicios}
     if encontrados != set(cantidades):
-        raise ApiError(
+        return respuesta_error(
             404,
             "SERVICIO_NO_ENCONTRADO",
             "Servicio no encontrado",
@@ -184,7 +184,7 @@ def _preparar_servicios(conexion, seleccionados):
     total = 0
     for servicio in servicios:
         if not servicio["activo"]:
-            raise ApiError(
+            return respuesta_error(
                 409,
                 "SERVICIO_INACTIVO",
                 "Servicio no disponible",
@@ -207,7 +207,7 @@ def _preparar_servicios(conexion, seleccionados):
 
 
 def _conflicto_compra():
-    return ApiError(
+    return respuesta_error(
         409,
         "CONFLICTO_COMPRA",
         "No fue posible completar la compra",
@@ -220,12 +220,26 @@ def crear_compra(usuario_id, datos):
     try:
         conexion.start_transaction()
         funcion = buscar_funcion_para_compra(conexion, datos["funcion_id"])
-        _validar_funcion(funcion)
-        _validar_y_bloquear_butacas(conexion, funcion, datos["butaca_ids"])
-        servicios, total_servicios = _preparar_servicios(
+        error = _validar_funcion(funcion)
+        if es_respuesta_error(error):
+            conexion.rollback()
+            return error
+        error = _validar_y_bloquear_butacas(
+            conexion,
+            funcion,
+            datos["butaca_ids"],
+        )
+        if es_respuesta_error(error):
+            conexion.rollback()
+            return error
+        servicios_preparados = _preparar_servicios(
             conexion,
             datos["servicios"],
         )
+        if es_respuesta_error(servicios_preparados):
+            conexion.rollback()
+            return servicios_preparados
+        servicios, total_servicios = servicios_preparados
 
         precio_entrada = int(funcion["precio"])
         total_entradas = precio_entrada * len(datos["butaca_ids"])
@@ -252,7 +266,8 @@ def crear_compra(usuario_id, datos):
             for butaca in butacas_funcion
         }
         if set(ids_por_butaca) != set(datos["butaca_ids"]):
-            raise _conflicto_compra()
+            conexion.rollback()
+            return _conflicto_compra()
 
         for butaca_id in datos["butaca_ids"]:
             crear_entrada(
@@ -267,9 +282,9 @@ def crear_compra(usuario_id, datos):
         resultado = _completar_compra(conexion, compra)
         conexion.commit()
         return resultado
-    except IntegrityError as error:
+    except IntegrityError:
         conexion.rollback()
-        raise _conflicto_compra() from error
+        return _conflicto_compra()
     except Exception:
         conexion.rollback()
         raise
@@ -298,13 +313,15 @@ def obtener_compra(compra_id, usuario_id, es_administrador):
     try:
         compra = buscar_compra_por_id(conexion, compra_id)
         if compra is None:
-            raise ApiError(
+            return respuesta_error(
                 404,
                 "COMPRA_NO_ENCONTRADA",
                 "Compra no encontrada",
                 "No existe una compra con ese identificador.",
             )
-        _validar_pertenencia(compra, usuario_id, es_administrador)
+        error = _validar_pertenencia(compra, usuario_id, es_administrador)
+        if es_respuesta_error(error):
+            return error
         return _completar_compra(conexion, compra)
     finally:
         conexion.close()
@@ -316,16 +333,21 @@ def cancelar_compra(compra_id, usuario_id, es_administrador, motivo=None):
         conexion.start_transaction()
         compra = buscar_compra_por_id(conexion, compra_id, bloquear=True)
         if compra is None:
-            raise ApiError(
+            conexion.rollback()
+            return respuesta_error(
                 404,
                 "COMPRA_NO_ENCONTRADA",
                 "Compra no encontrada",
                 "No existe una compra con ese identificador.",
             )
-        _validar_pertenencia(compra, usuario_id, es_administrador)
+        error = _validar_pertenencia(compra, usuario_id, es_administrador)
+        if es_respuesta_error(error):
+            conexion.rollback()
+            return error
 
         if compra["estado"] != "confirmada":
-            raise ApiError(
+            conexion.rollback()
+            return respuesta_error(
                 409,
                 "COMPRA_YA_CANCELADA",
                 "Compra no cancelable",
@@ -334,7 +356,8 @@ def cancelar_compra(compra_id, usuario_id, es_administrador, motivo=None):
 
         inicio_funcion = _fecha_local(compra["funcion_fecha_hora"])
         if inicio_funcion <= datetime.now(ZONA_HORARIA) + PLAZO_CANCELACION:
-            raise ApiError(
+            conexion.rollback()
+            return respuesta_error(
                 409,
                 "PLAZO_CANCELACION_VENCIDO",
                 "Compra no cancelable",
@@ -344,7 +367,8 @@ def cancelar_compra(compra_id, usuario_id, es_administrador, motivo=None):
 
         entradas = bloquear_entradas_compra(conexion, compra_id)
         if any(entrada["estado"] == "utilizada" for entrada in entradas):
-            raise ApiError(
+            conexion.rollback()
+            return respuesta_error(
                 409,
                 "ENTRADA_YA_UTILIZADA",
                 "Compra no cancelable",
@@ -358,9 +382,9 @@ def cancelar_compra(compra_id, usuario_id, es_administrador, motivo=None):
         resultado = _completar_compra(conexion, compra)
         conexion.commit()
         return resultado
-    except IntegrityError as error:
+    except IntegrityError:
         conexion.rollback()
-        raise _conflicto_compra() from error
+        return _conflicto_compra()
     except Exception:
         conexion.rollback()
         raise
