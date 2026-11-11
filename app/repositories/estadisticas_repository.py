@@ -33,7 +33,7 @@ def obtener_ocupacion_por_funcion(conexion, filtros):
                     THEN e.id
                 END
             ) AS butacas_vendidas,
-            (s.filas * s.butacas_por_fila) AS capacidad
+            s.filas * s.butacas_por_fila AS capacidad
         FROM funciones AS f
         INNER JOIN salas AS s
             ON s.id = f.sala_id
@@ -74,7 +74,7 @@ def obtener_ocupacion_por_pelicula(conexion, filtros):
             SELECT
                 f.id AS funcion_id,
                 f.pelicula_id,
-                s.capacidad,
+                s.filas * s.butacas_por_fila AS capacidad,
                 COUNT(
                     DISTINCT CASE
                         WHEN c.estado = 'confirmada'
@@ -93,50 +93,10 @@ def obtener_ocupacion_por_pelicula(conexion, filtros):
             GROUP BY
                 f.id,
                 f.pelicula_id,
-                s.capacidad
+                s.filas,
+                s.butacas_por_fila
         ) AS datos
             ON datos.pelicula_id = p.id
-        GROUP BY p.id
-        ORDER BY p.id
-    """
-
-    cursor = conexion.cursor(dictionary=True)
-    try:
-        cursor.execute(consulta, tuple(parametros))
-        return cursor.fetchall()
-    finally:
-        cursor.close()
-
-
-def obtener_ocupacion_por_pelicula(conexion, filtros):
-    condiciones, parametros = _filtro_fechas("f", filtros)
-
-    where = (
-        f"WHERE {' AND '.join(condiciones)}"
-        if condiciones else ""
-    )
-
-    consulta = f"""
-        SELECT
-            p.id AS pelicula_id,
-            COUNT(
-                DISTINCT CASE
-                    WHEN c.estado = 'confirmada'
-                     AND e.estado IN ('vigente', 'utilizada')
-                    THEN e.id
-                END
-            ) AS butacas_vendidas,
-            SUM(s.capacidad) AS capacidad_total_funciones
-        FROM peliculas AS p
-        INNER JOIN funciones AS f
-            ON f.pelicula_id = p.id
-        INNER JOIN salas AS s
-            ON s.id = f.sala_id
-        LEFT JOIN compras AS c
-            ON c.funcion_id = f.id
-        LEFT JOIN entradas AS e
-            ON e.compra_id = c.id
-        {where}
         GROUP BY p.id
         ORDER BY p.id
     """

@@ -108,7 +108,11 @@ CREATE TABLE IF NOT EXISTS compras (
     funcion_id INT UNSIGNED NOT NULL,
     fecha_hora DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     estado VARCHAR(20) NOT NULL,
+    medio_pago VARCHAR(20) NOT NULL,
+    total_entradas DECIMAL(10, 2) NOT NULL,
+    total_servicios DECIMAL(10, 2) NOT NULL,
     total DECIMAL(10, 2) NOT NULL,
+    motivo_cancelacion VARCHAR(500) NULL,
     CONSTRAINT fk_compras_usuario
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
     CONSTRAINT fk_compras_funcion
