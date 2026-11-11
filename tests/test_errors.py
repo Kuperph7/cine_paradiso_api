@@ -5,7 +5,7 @@ import pytest
 from mysql.connector import IntegrityError
 
 from app import create_app
-from app.errors import ApiError, error_response
+from app.errors import respuesta_error
 from app.services import auth_service, compras_service, entradas_service
 
 
@@ -47,14 +47,21 @@ def _assert_error(response, status, code):
 
 
 @pytest.mark.parametrize("status", [400, 401, 403, 404, 409])
-def test_api_errors_share_the_same_contract(app, status):
-    error = ApiError(status, f"ERROR_{status}", "Mensaje", "Detalle")
+def test_api_errors_share_the_same_contract(status):
+    body, returned_status = respuesta_error(
+        status,
+        f"ERROR_{status}",
+        "Mensaje",
+        "Detalle",
+    )
 
-    with app.app_context():
-        response, returned_status = error_response(error)
-
-    response.status_code = returned_status
-    _assert_error(response, status, f"ERROR_{status}")
+    assert returned_status == status
+    assert set(body) == {"codigo", "mensaje", "detalles"}
+    assert body["codigo"] == f"ERROR_{status}"
+    assert body["mensaje"] == "Mensaje"
+    assert body["detalles"] == [
+        {"campo": "general", "mensaje": "Detalle"}
+    ]
 
 
 def test_malformed_json_is_a_uniform_validation_error(client):
@@ -157,11 +164,10 @@ def test_unavailable_show_is_an_availability_conflict():
         + timedelta(days=1),
     }
 
-    with pytest.raises(ApiError) as raised:
-        compras_service._validar_funcion(show)
+    body, status = compras_service._validar_funcion(show)
 
-    assert raised.value.status == 409
-    assert raised.value.code == "FUNCION_NO_DISPONIBLE"
+    assert status == 409
+    assert body["codigo"] == "FUNCION_NO_DISPONIBLE"
 
 
 def test_invalid_ticket_is_returned_with_a_specific_reason(

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import ApiError
+from app.errors import es_respuesta_error, respuesta_error
 
 from app.repositories.peliculas_repository import (
     listar_peliculas_cartelera as listar_peliculas,
@@ -58,7 +58,7 @@ def consultar_detalle_pelicula(pelicula_id):
         pelicula = buscar_pelicula(conexion, pelicula_id)
 
         if pelicula is None:
-            raise ApiError(
+            return respuesta_error(
                 404,
                 "PELICULA_NO_ENCONTRADA",
                 "Película no encontrada",
@@ -84,6 +84,23 @@ def consultar_detalle_pelicula(pelicula_id):
         conexion.close()
 
 
+def consultar_funcion(funcion_id):
+    conexion = get_db_connection()
+
+    try:
+        funcion = buscar_funcion_cartelera(conexion, funcion_id)
+        if funcion is None:
+            return respuesta_error(
+                404,
+                "FUNCION_NO_ENCONTRADA",
+                "Función no encontrada",
+                "No existe una función disponible con ese identificador.",
+            )
+        return _serializar_funcion(funcion)
+    finally:
+        conexion.close()
+
+
 # Issue #33 - Disponibilidad de butacas
 def consultar_butacas_funcion(funcion_id):
     conexion = get_db_connection()
@@ -92,7 +109,7 @@ def consultar_butacas_funcion(funcion_id):
         funcion = buscar_funcion_cartelera(conexion, funcion_id)
 
         if funcion is None:
-            raise ApiError(
+            return respuesta_error(
                 404,
                 "FUNCION_NO_ENCONTRADA",
                 "Función no encontrada",
@@ -105,20 +122,8 @@ def consultar_butacas_funcion(funcion_id):
             funcion["sala_id"]
         )
 
-        butacas_libres = 0
-
-        for butaca in butacas:
-            estado = butaca["estado"]
-
-            if estado == "disponible":
-                butacas_libres += 1
-
-            butaca["ocupada"] = estado == "ocupada"
-
         return {
             "funcion_id": funcion_id,
-            "total_butacas": len(butacas),
-            "butacas_libres": butacas_libres,
             "butacas": butacas
         }
 
@@ -150,7 +155,7 @@ def _serializar_funcion(funcion):
 
 def _validar_fecha_futura(fecha_hora):
     if fecha_hora <= datetime.now(fecha_hora.tzinfo):
-        raise ApiError(
+        return respuesta_error(
             400,
             "FECHA_HORA_INVALIDA",
             "Fecha y hora inválidas",
@@ -162,7 +167,7 @@ def _validar_pelicula(conexion, pelicula_id):
     pelicula = buscar_pelicula_por_id(conexion, pelicula_id)
 
     if pelicula is None:
-        raise ApiError(
+        return respuesta_error(
             404,
             "PELICULA_NO_ENCONTRADA",
             "Película no encontrada",
@@ -170,7 +175,7 @@ def _validar_pelicula(conexion, pelicula_id):
         )
 
     if not pelicula["activa"]:
-        raise ApiError(
+        return respuesta_error(
             409,
             "PELICULA_INACTIVA",
             "Película inactiva",
@@ -182,7 +187,7 @@ def _validar_sala(conexion, sala_id):
     sala = buscar_sala_por_id(conexion, sala_id)
 
     if sala is None:
-        raise ApiError(
+        return respuesta_error(
             404,
             "SALA_NO_ENCONTRADA",
             "Sala no encontrada",
@@ -190,7 +195,7 @@ def _validar_sala(conexion, sala_id):
         )
 
     if not sala["activa"]:
-        raise ApiError(
+        return respuesta_error(
             409,
             "SALA_INACTIVA",
             "Sala inactiva",
@@ -200,7 +205,7 @@ def _validar_sala(conexion, sala_id):
 
 def _validar_horario(conexion, sala_id, fecha_hora, excluir_id=None):
     if existe_funcion_en_horario(conexion, sala_id, fecha_hora, excluir_id):
-        raise ApiError(
+        return respuesta_error(
             409,
             "HORARIO_NO_DISPONIBLE",
             "Horario no disponible",
@@ -209,7 +214,7 @@ def _validar_horario(conexion, sala_id, fecha_hora, excluir_id=None):
 
 
 def _conflicto_integridad():
-    return ApiError(
+    return respuesta_error(
         409,
         "CONFLICTO_FUNCION",
         "No fue posible guardar la función",
@@ -250,18 +255,25 @@ def crear_funcion(datos):
     conexion = get_db_connection()
 
     try:
-        _validar_fecha_futura(datos["fecha_hora"])
-        _validar_pelicula(conexion, datos["pelicula_id"])
-        _validar_sala(conexion, datos["sala_id"])
+        for validacion, argumentos in (
+            (_validar_fecha_futura, (datos["fecha_hora"],)),
+            (_validar_pelicula, (conexion, datos["pelicula_id"])),
+            (_validar_sala, (conexion, datos["sala_id"])),
+        ):
+            error = validacion(*argumentos)
+            if es_respuesta_error(error):
+                return error
 
         datos_db = dict(datos)
         datos_db["fecha_hora"] = _fecha_para_base(datos["fecha_hora"])
 
-        _validar_horario(
+        error = _validar_horario(
             conexion,
             datos_db["sala_id"],
             datos_db["fecha_hora"]
         )
+        if es_respuesta_error(error):
+            return error
 
         funcion_id = insertar_funcion(conexion, datos_db)
         funcion = buscar_funcion_por_id(conexion, funcion_id)
@@ -270,9 +282,9 @@ def crear_funcion(datos):
 
         return _serializar_funcion(funcion)
 
-    except IntegrityError as error:
+    except IntegrityError:
         conexion.rollback()
-        raise _conflicto_integridad() from error
+        return _conflicto_integridad()
 
     except Exception:
         conexion.rollback()
@@ -292,7 +304,7 @@ def actualizar_funcion(funcion_id, cambios):
         )
 
         if funcion_actual is None:
-            raise ApiError(
+            return respuesta_error(
                 404,
                 "FUNCION_NO_ENCONTRADA",
                 "Función no encontrada",
@@ -317,13 +329,17 @@ def actualizar_funcion(funcion_id, cambios):
                         tzinfo=ZONA_HORARIA
                     )
 
-            _validar_fecha_futura(fecha_validada)
-            _validar_pelicula(
-                conexion, datos_finales["pelicula_id"]
-            )
-            _validar_sala(
-                conexion, datos_finales["sala_id"]
-            )
+            for validacion, argumentos in (
+                (_validar_fecha_futura, (fecha_validada,)),
+                (
+                    _validar_pelicula,
+                    (conexion, datos_finales["pelicula_id"]),
+                ),
+                (_validar_sala, (conexion, datos_finales["sala_id"])),
+            ):
+                error = validacion(*argumentos)
+                if es_respuesta_error(error):
+                    return error
 
         cambios_db = dict(cambios)
 
@@ -338,12 +354,14 @@ def actualizar_funcion(funcion_id, cambios):
         )
 
         if cambio_de_horario or cambios.get("estado") == "programada":
-            _validar_horario(
+            error = _validar_horario(
                 conexion,
                 datos_finales["sala_id"],
                 datos_finales["fecha_hora"],
                 excluir_id=funcion_id,
             )
+            if es_respuesta_error(error):
+                return error
 
         guardar_cambios_funcion(
             conexion, funcion_id, cambios_db
@@ -355,9 +373,9 @@ def actualizar_funcion(funcion_id, cambios):
 
         return _serializar_funcion(funcion)
 
-    except IntegrityError as error:
+    except IntegrityError:
         conexion.rollback()
-        raise _conflicto_integridad() from error
+        return _conflicto_integridad()
 
     except Exception:
         conexion.rollback()

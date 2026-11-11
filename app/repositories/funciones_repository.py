@@ -113,7 +113,11 @@ def buscar_funcion_cartelera(conexion, funcion_id):
     consulta = """
         SELECT
             f.id,
-            f.sala_id
+            f.pelicula_id,
+            f.sala_id,
+            f.fecha_hora,
+            f.precio,
+            f.estado
         FROM funciones AS f
         INNER JOIN salas AS s
             ON s.id = f.sala_id

@@ -1,38 +1,7 @@
-"""Contrato y manejadores centralizados para los errores de la API."""
-
-from flask import current_app, jsonify
-from werkzeug.exceptions import HTTPException
+"""Funciones para construir respuestas de error uniformes de la API."""
 
 
-class ApiError(Exception):
-    def __init__(self, status, code, message, description):
-        super().__init__(description)
-        self.status = status
-        self.code = code
-        self.message = message
-        self.description = description
-
-
-def error_response(error):
-    """Convierte un error de negocio al contrato JSON público de la API."""
-    return (
-        jsonify(
-            {
-                "codigo": error.code,
-                "mensaje": error.message,
-                "detalles": [
-                    {
-                        "campo": "general",
-                        "mensaje": error.description,
-                    }
-                ],
-            }
-        ),
-        error.status,
-    )
-
-
-HTTP_ERROR_DEFINITIONS = {
+ERRORES_HTTP = {
     400: (
         "DATOS_INVALIDOS",
         "Los datos enviados son inválidos",
@@ -73,42 +42,61 @@ HTTP_ERROR_DEFINITIONS = {
         "Los datos enviados son inválidos",
         "La solicitud contiene datos que no pueden procesarse.",
     ),
+    500: (
+        "ERROR_INTERNO",
+        "Error interno del servidor",
+        "No fue posible procesar la solicitud.",
+    ),
 }
 
 
-def http_error_response(error):
-    """Normaliza los errores HTTP generados por Flask/Werkzeug."""
-    status = error.code or 500
-    code, message, description = HTTP_ERROR_DEFINITIONS.get(
-        status,
+def respuesta_error(codigo_http, codigo, mensaje, detalle, campo="general"):
+    """Devuelve el único contrato usado por todos los errores de la API."""
+    return (
+        {
+            "codigo": codigo,
+            "mensaje": mensaje,
+            "detalles": [
+                {
+                    "campo": campo,
+                    "mensaje": detalle,
+                }
+            ],
+        },
+        codigo_http,
+    )
+
+
+def es_respuesta_error(resultado):
+    """Indica si un resultado es una respuesta de error creada por este módulo."""
+    return (
+        isinstance(resultado, tuple)
+        and len(resultado) == 2
+        and isinstance(resultado[0], dict)
+        and isinstance(resultado[1], int)
+        and resultado[1] >= 400
+        and set(resultado[0]) == {"codigo", "mensaje", "detalles"}
+    )
+
+
+def respuesta_error_http(codigo_http):
+    """Crea la respuesta uniforme correspondiente a un código HTTP."""
+    codigo, mensaje, detalle = ERRORES_HTTP.get(
+        codigo_http,
         (
-            f"ERROR_HTTP_{status}",
+            f"ERROR_HTTP_{codigo_http}",
             "No fue posible procesar la solicitud",
             "Ocurrió un error al procesar la solicitud.",
         ),
     )
-    return error_response(ApiError(status, code, message, description))
+    return respuesta_error(codigo_http, codigo, mensaje, detalle)
 
 
-def unexpected_error_response(error):
-    """Evita respuestas HTML y la exposición de detalles ante fallos internos."""
-    current_app.logger.error(
-        "Error no controlado al procesar la solicitud",
-        exc_info=(type(error), error, error.__traceback__),
-    )
-    return error_response(
-        ApiError(
-            500,
-            "ERROR_INTERNO",
-            "Error interno del servidor",
-            "No fue posible procesar la solicitud.",
+def registrar_manejadores_errores(app):
+    """Registra por código los errores que Flask puede generar automáticamente."""
+    for codigo_http in ERRORES_HTTP:
+        app.register_error_handler(
+            codigo_http,
+            lambda _error, codigo=codigo_http: respuesta_error_http(codigo),
         )
-    )
-
-
-def register_error_handlers(app):
-    """Registra en una aplicación Flask todos los manejadores de la API."""
-    app.register_error_handler(ApiError, error_response)
-    app.register_error_handler(HTTPException, http_error_response)
-    app.register_error_handler(Exception, unexpected_error_response)
 

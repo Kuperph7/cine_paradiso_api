@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from app.errors import es_respuesta_error
 from app.validators.auth_validators import (
     validar_registro_usuario,
     validar_login_usuario,
@@ -18,8 +19,12 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 def register():
     """Registra un nuevo usuario cliente en el sistema."""
     data = request.get_json()
-    validar_registro_usuario(data)
+    error = validar_registro_usuario(data)
+    if es_respuesta_error(error):
+        return error
     resultado = registrar_cliente(data)
+    if es_respuesta_error(resultado):
+        return resultado
     return jsonify(resultado), 201
 
 
@@ -27,8 +32,12 @@ def register():
 def login():
     """Valida credenciales y genera la sesión con token de acceso JWT."""
     data = request.get_json()
-    validar_login_usuario(data)
+    error = validar_login_usuario(data)
+    if es_respuesta_error(error):
+        return error
     resultado = iniciar_sesion(data)
+    if es_respuesta_error(resultado):
+        return resultado
     return jsonify(resultado), 200
 
 
@@ -42,5 +51,9 @@ def logout():
 def perfil():
     """Obtiene el perfil del usuario autenticado a partir del token JWT."""
     identidad = requerir_usuario_autenticado()
+    if es_respuesta_error(identidad):
+        return identidad
     usuario = obtener_perfil_usuario(identidad["usuario_id"])
+    if es_respuesta_error(usuario):
+        return usuario
     return jsonify(usuario), 200

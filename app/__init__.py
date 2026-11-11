@@ -1,7 +1,7 @@
 from flask import Flask
 
 from app.config import Config
-from app.errors import register_error_handlers
+from app.errors import registrar_manejadores_errores
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.cartelera import cartelera_bp
@@ -20,7 +20,7 @@ def create_app(config_class=Config):
     app.register_blueprint(entradas_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(salas_bp)
-    register_error_handlers(app)
+    registrar_manejadores_errores(app)
 
     return app
 
