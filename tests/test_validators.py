@@ -1,8 +1,6 @@
 from decimal import Decimal
 
 import pytest
-
-from app.errors import ApiError
 from app.validators.admin_validators import (
     validate_function_state,
     validate_service_price,
@@ -34,14 +32,15 @@ def test_valid_business_values():
         (validate_purchase_total, -1),
     ],
 )
-def test_invalid_business_values_raise_api_error(validator, value):
-    with pytest.raises(ApiError) as error:
-        validator(value)
+def test_invalid_business_values_return_uniform_error(validator, value):
+    body, status = validator(value)
 
-    assert error.value.status == 400
-    assert error.value.code == "DATOS_INVALIDOS"
+    assert status == 400
+    assert body["codigo"] == "DATOS_INVALIDOS"
 
 
-def test_invalid_service_quantity_raises_api_error():
-    with pytest.raises(ApiError):
-        validate_service_line(0, 1500, 0)
+def test_invalid_service_quantity_returns_uniform_error():
+    body, status = validate_service_line(0, 1500, 0)
+
+    assert status == 400
+    assert body["codigo"] == "DATOS_INVALIDOS"

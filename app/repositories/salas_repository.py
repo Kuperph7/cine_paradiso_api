@@ -8,11 +8,9 @@ def listar_butacas_de_funcion(conexion, funcion_id, sala_id):
         SELECT
             b.id,
             b.fila,
-            b.numero AS columna,
+            b.numero,
             CASE
-                WHEN b.activa = FALSE THEN 'inactiva'
-                WHEN bf.estado = 'ocupada' THEN 'ocupada'
-                WHEN bf.estado = 'reservada' THEN 'reservada'
+                WHEN bf.estado IN ('ocupada', 'reservada') THEN 'ocupada'
                 ELSE 'disponible'
             END AS estado
         FROM butacas AS b
@@ -20,6 +18,7 @@ def listar_butacas_de_funcion(conexion, funcion_id, sala_id):
             ON bf.butaca_id = b.id
             AND bf.funcion_id = %s
         WHERE b.sala_id = %s
+          AND b.activa = TRUE
         ORDER BY b.fila, b.numero
     """
 

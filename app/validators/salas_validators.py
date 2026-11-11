@@ -1,6 +1,6 @@
 """Validaciones de la gestión administrativa de salas."""
 
-from app.errors import ApiError
+from app.errors import es_respuesta_error, respuesta_error
 
 
 CAMPOS_CREACION = {"local_id", "nombre", "filas", "butacas_por_fila"}
@@ -9,18 +9,18 @@ MAXIMO_FILAS = 18278
 
 
 def _error(codigo, descripcion):
-    raise ApiError(400, codigo, "Solicitud inválida", descripcion)
+    return respuesta_error(400, codigo, "Solicitud inválida", descripcion)
 
 
 def _entero_positivo(valor, campo):
     if isinstance(valor, bool) or not isinstance(valor, int) or valor <= 0:
-        _error("CAMPO_INVALIDO", f"{campo} debe ser un número entero positivo.")
+        return _error("CAMPO_INVALIDO", f"{campo} debe ser un número entero positivo.")
     return valor
 
 
 def _validar_cuerpo(datos, campos_admitidos, requeridos):
     if not isinstance(datos, dict):
-        _error(
+        return _error(
             "CUERPO_INVALIDO",
             "El cuerpo de la solicitud debe ser un objeto JSON.",
         )
@@ -28,38 +28,47 @@ def _validar_cuerpo(datos, campos_admitidos, requeridos):
     desconocidos = set(datos) - campos_admitidos
     if desconocidos:
         campos = ", ".join(sorted(desconocidos))
-        _error("CAMPOS_DESCONOCIDOS", f"Campos no admitidos: {campos}.")
+        return _error("CAMPOS_DESCONOCIDOS", f"Campos no admitidos: {campos}.")
 
     faltantes = requeridos - set(datos)
     if faltantes:
         campos = ", ".join(sorted(faltantes))
-        _error("CAMPOS_REQUERIDOS", f"Faltan campos requeridos: {campos}.")
+        return _error("CAMPOS_REQUERIDOS", f"Faltan campos requeridos: {campos}.")
 
     if not datos:
-        _error("CUERPO_VACIO", "Debe indicar al menos un campo para modificar.")
+        return _error("CUERPO_VACIO", "Debe indicar al menos un campo para modificar.")
 
     resultado = dict(datos)
     if "local_id" in resultado:
-        resultado["local_id"] = _entero_positivo(
+        valor = _entero_positivo(
             resultado["local_id"], "local_id"
         )
+        if es_respuesta_error(valor):
+            return valor
+        resultado["local_id"] = valor
     if "nombre" in resultado:
         if not isinstance(resultado["nombre"], str) or not resultado["nombre"].strip():
-            _error("CAMPO_INVALIDO", "nombre debe ser un texto no vacío.")
+            return _error("CAMPO_INVALIDO", "nombre debe ser un texto no vacío.")
         resultado["nombre"] = resultado["nombre"].strip()
     if "filas" in resultado:
-        resultado["filas"] = _entero_positivo(resultado["filas"], "filas")
+        valor = _entero_positivo(resultado["filas"], "filas")
+        if es_respuesta_error(valor):
+            return valor
+        resultado["filas"] = valor
         if resultado["filas"] > MAXIMO_FILAS:
-            _error(
+            return _error(
                 "DISTRIBUCION_INVALIDA",
                 f"filas no puede superar {MAXIMO_FILAS}.",
             )
     if "butacas_por_fila" in resultado:
-        resultado["butacas_por_fila"] = _entero_positivo(
+        valor = _entero_positivo(
             resultado["butacas_por_fila"], "butacas_por_fila"
         )
+        if es_respuesta_error(valor):
+            return valor
+        resultado["butacas_por_fila"] = valor
     if "activa" in resultado and not isinstance(resultado["activa"], bool):
-        _error("CAMPO_INVALIDO", "activa debe ser un valor booleano.")
+        return _error("CAMPO_INVALIDO", "activa debe ser un valor booleano.")
 
     return resultado
 
@@ -80,7 +89,7 @@ def validar_filtros_salas(args):
         return True
     if incluir_inactivas.lower() == "false":
         return False
-    _error("FILTRO_INVALIDO", "incluir_inactivas debe ser true o false.")
+    return _error("FILTRO_INVALIDO", "incluir_inactivas debe ser true o false.")
 
 
 def validar_sala_id(sala_id):

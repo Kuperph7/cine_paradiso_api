@@ -2,11 +2,11 @@
 
 from decimal import Decimal
 
-from app.errors import ApiError
+from app.errors import respuesta_error
 
 
 def validation_error(description):
-    raise ApiError(
+    return respuesta_error(
         400,
         "DATOS_INVALIDOS",
         "Los datos enviados son inválidos",
@@ -18,7 +18,7 @@ def validate_choice(value, field_name, allowed_values):
     """Valida que un string pertenezca al conjunto permitido por el contrato."""
     if not isinstance(value, str) or value not in allowed_values:
         allowed = ", ".join(sorted(allowed_values))
-        validation_error(
+        return validation_error(
             f"El campo '{field_name}' solo admite: {allowed}"
         )
     return value
@@ -29,9 +29,9 @@ def validate_non_negative_number(value, field_name):
     if isinstance(value, bool) or not isinstance(
         value, (int, float, Decimal)
     ):
-        validation_error(f"El campo '{field_name}' debe ser numérico")
+        return validation_error(f"El campo '{field_name}' debe ser numérico")
     if value < 0:
-        validation_error(
+        return validation_error(
             f"El campo '{field_name}' debe ser mayor o igual a cero"
         )
     return value
@@ -40,9 +40,9 @@ def validate_non_negative_number(value, field_name):
 def validate_positive_integer(value, field_name):
     """Valida cantidades enteras estrictamente mayores que cero."""
     if isinstance(value, bool) or not isinstance(value, int):
-        validation_error(f"El campo '{field_name}' debe ser un entero")
+        return validation_error(f"El campo '{field_name}' debe ser un entero")
     if value <= 0:
-        validation_error(
+        return validation_error(
             f"El campo '{field_name}' debe ser mayor que cero"
         )
     return value
@@ -51,7 +51,7 @@ def validate_positive_integer(value, field_name):
 def validate_date_range(start, end, start_name, end_name):
     """Valida un período cuando ambas fechas fueron informadas."""
     if start is not None and end is not None and start >= end:
-        validation_error(
+        return validation_error(
             f"El campo '{start_name}' debe ser anterior a '{end_name}'"
         )
     return start, end

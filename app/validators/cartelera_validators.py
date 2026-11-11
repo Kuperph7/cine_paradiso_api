@@ -4,7 +4,7 @@
 import re
 from datetime import date, datetime
 
-from app.errors import ApiError
+from app.errors import es_respuesta_error, respuesta_error
 
 
 # Issue #31 - Validar filtros de cartelera
@@ -14,7 +14,7 @@ def validar_filtros_cartelera(args):
 
     if local_id is not None:
         if not local_id.isdecimal() or int(local_id) <= 0:
-            raise ApiError(
+            return respuesta_error(
                 400,
                 "FILTRO_INVALIDO",
                 "Filtro inválido",
@@ -25,7 +25,7 @@ def validar_filtros_cartelera(args):
 
     if fecha is not None:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha):
-            raise ApiError(
+            return respuesta_error(
                 400,
                 "FECHA_INVALIDA",
                 "Fecha inválida",
@@ -35,7 +35,7 @@ def validar_filtros_cartelera(args):
         try:
             fecha = date.fromisoformat(fecha)
         except ValueError:
-            raise ApiError(
+            return respuesta_error(
                 400,
                 "FECHA_INVALIDA",
                 "Fecha inválida",
@@ -67,18 +67,18 @@ PATRON_FECHA_HORA = re.compile(
 
 
 def _error(codigo, descripcion):
-    raise ApiError(400, codigo, "Solicitud inválida", descripcion)
+    return respuesta_error(400, codigo, "Solicitud inválida", descripcion)
 
 
 def _entero_positivo(valor, campo):
     if isinstance(valor, bool) or not isinstance(valor, int) or valor <= 0:
-        _error("CAMPO_INVALIDO", f"{campo} debe ser un número entero positivo.")
+        return _error("CAMPO_INVALIDO", f"{campo} debe ser un número entero positivo.")
     return valor
 
 
 def _precio(valor):
     if isinstance(valor, bool) or not isinstance(valor, int) or valor < 0:
-        _error(
+        return _error(
             "PRECIO_INVALIDO",
             "precio debe ser un número entero mayor o igual que cero.",
         )
@@ -87,14 +87,14 @@ def _precio(valor):
 
 def _fecha_hora(valor, campo="fecha_hora"):
     if not isinstance(valor, str) or not valor.strip():
-        _error(
+        return _error(
             "FECHA_HORA_INVALIDA",
             f"{campo} debe tener formato de fecha y hora RFC 3339.",
         )
 
     texto = valor.strip()
     if PATRON_FECHA_HORA.fullmatch(texto) is None:
-        _error(
+        return _error(
             "FECHA_HORA_INVALIDA",
             f"{campo} debe tener formato de fecha y hora RFC 3339.",
         )
@@ -105,13 +105,13 @@ def _fecha_hora(valor, campo="fecha_hora"):
     try:
         fecha = datetime.fromisoformat(texto)
     except ValueError:
-        _error(
+        return _error(
             "FECHA_HORA_INVALIDA",
             f"{campo} debe tener formato de fecha y hora RFC 3339.",
         )
 
     if fecha.tzinfo is None or fecha.utcoffset() is None:
-        _error(
+        return _error(
             "FECHA_HORA_INVALIDA",
             f"{campo} debe incluir el huso horario, por ejemplo -03:00.",
         )
@@ -121,7 +121,7 @@ def _fecha_hora(valor, campo="fecha_hora"):
 
 def _estado(valor):
     if not isinstance(valor, str) or valor not in ESTADOS_FUNCION:
-        _error(
+        return _error(
             "ESTADO_INVALIDO",
             "estado debe ser 'programada' o 'cancelada'.",
         )
@@ -130,7 +130,7 @@ def _estado(valor):
 
 def _validar_cuerpo(datos, requeridos, requiere_al_menos_un_campo=False):
     if not isinstance(datos, dict):
-        _error(
+        return _error(
             "CUERPO_INVALIDO",
             "El cuerpo de la solicitud debe ser un objeto JSON.",
         )
@@ -138,35 +138,52 @@ def _validar_cuerpo(datos, requeridos, requiere_al_menos_un_campo=False):
     desconocidos = set(datos) - CAMPOS_FUNCION
     if desconocidos:
         campos = ", ".join(sorted(desconocidos))
-        _error("CAMPOS_DESCONOCIDOS", f"Campos no admitidos: {campos}.")
+        return _error("CAMPOS_DESCONOCIDOS", f"Campos no admitidos: {campos}.")
 
     faltantes = requeridos - set(datos)
     if faltantes:
         campos = ", ".join(sorted(faltantes))
-        _error("CAMPOS_REQUERIDOS", f"Faltan campos requeridos: {campos}.")
+        return _error("CAMPOS_REQUERIDOS", f"Faltan campos requeridos: {campos}.")
 
     if requiere_al_menos_un_campo and not datos:
-        _error("CUERPO_VACIO", "Debe indicar al menos un campo para modificar.")
+        return _error("CUERPO_VACIO", "Debe indicar al menos un campo para modificar.")
 
     resultado = dict(datos)
     if "pelicula_id" in resultado:
-        resultado["pelicula_id"] = _entero_positivo(
+        valor = _entero_positivo(
             resultado["pelicula_id"], "pelicula_id"
         )
+        if es_respuesta_error(valor):
+            return valor
+        resultado["pelicula_id"] = valor
     if "sala_id" in resultado:
-        resultado["sala_id"] = _entero_positivo(resultado["sala_id"], "sala_id")
+        valor = _entero_positivo(resultado["sala_id"], "sala_id")
+        if es_respuesta_error(valor):
+            return valor
+        resultado["sala_id"] = valor
     if "fecha_hora" in resultado:
-        resultado["fecha_hora"] = _fecha_hora(resultado["fecha_hora"])
+        valor = _fecha_hora(resultado["fecha_hora"])
+        if es_respuesta_error(valor):
+            return valor
+        resultado["fecha_hora"] = valor
     if "precio" in resultado:
-        resultado["precio"] = _precio(resultado["precio"])
+        valor = _precio(resultado["precio"])
+        if es_respuesta_error(valor):
+            return valor
+        resultado["precio"] = valor
     if "estado" in resultado:
-        resultado["estado"] = _estado(resultado["estado"])
+        valor = _estado(resultado["estado"])
+        if es_respuesta_error(valor):
+            return valor
+        resultado["estado"] = valor
 
     return resultado
 
 
 def validar_creacion_funcion(datos):
     resultado = _validar_cuerpo(datos, CAMPOS_FUNCION_REQUERIDOS)
+    if es_respuesta_error(resultado):
+        return resultado
     resultado.setdefault("estado", "programada")
     return resultado
 
@@ -183,18 +200,26 @@ def validar_filtros_funciones(args):
 
     if pelicula_id is not None:
         if not pelicula_id.isdecimal():
-            _error(
+            return _error(
                 "FILTRO_INVALIDO",
                 "pelicula_id debe ser un número entero positivo.",
             )
         pelicula_id = _entero_positivo(int(pelicula_id), "pelicula_id")
+        if es_respuesta_error(pelicula_id):
+            return pelicula_id
 
     desde = _fecha_hora(desde, "desde") if desde is not None else None
+    if es_respuesta_error(desde):
+        return desde
     hasta = _fecha_hora(hasta, "hasta") if hasta is not None else None
+    if es_respuesta_error(hasta):
+        return hasta
     estado = _estado(estado) if estado is not None else None
+    if es_respuesta_error(estado):
+        return estado
 
     if desde is not None and hasta is not None and desde > hasta:
-        _error(
+        return _error(
             "RANGO_FECHAS_INVALIDO",
             "desde debe ser anterior o igual que hasta.",
         )
