@@ -1,0 +1,56 @@
+name: cine-paradiso-api
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-cine_paradiso}
+      MYSQL_USER: ${DB_USER:-cine_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-cine_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-cine_root_password}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root --password="$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+    environment:
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+      SECRET_KEY: ${SECRET_KEY:-change-this-development-secret}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-cine_paradiso}
+      DB_USER: ${DB_USER:-cine_user}
+      DB_PASSWORD: ${DB_PASSWORD:-cine_password}
+      MOVIES_API_KEY: ${MOVIES_API_KEY:-}
+    ports:
+      - "${API_PORT:-5000}:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/cartelera', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    init: true
+
+volumes:
+  mysql_data:
