@@ -182,7 +182,7 @@ def actualizar_pelicula(pelicula_id, cambios):
                 "Película no encontrada",
                 "No existe una película con ese identificador.",
             )
-
+        
         guardar_cambios_pelicula(conexion, pelicula_id, cambios)
         pelicula = buscar_pelicula_por_id(conexion, pelicula_id)
         conexion.commit()

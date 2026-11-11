@@ -108,3 +108,5 @@ def buscar_servicios_por_ids(conexion, servicio_ids):
     finally:
         cursor.close()
 
+def eliminar_servicio(servicio_id):
+    return "servicio eliminado"

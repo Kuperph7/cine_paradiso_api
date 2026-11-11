@@ -21,14 +21,14 @@ def buscar_peliculas(titulo, api_key, timeout=5):
         respuesta.raise_for_status()
         contenido = respuesta.json()
     except (requests.RequestException, ValueError):
-        return None
+        raise RuntimeError("No fue posible consultar TMDB.")
 
     if not isinstance(contenido, dict):
-        return None
+        raise RuntimeError("TMDB devolvió una respuesta inválida.")
 
     resultados = contenido.get("results")
     if not isinstance(resultados, list):
-        return None
+        raise RuntimeError("TMDB devolvió una respuesta inválida.")
 
     peliculas = []
     for resultado in resultados:

@@ -102,7 +102,6 @@ def listar_funciones():
             "Permiso denegado",
             "El filtro estado es exclusivo del rol administrador.",
         )
-
     resultado = listar_funciones_service(filtros, usuario_es_administrador)
     if es_respuesta_error(resultado):
         return resultado
