@@ -119,10 +119,14 @@ ON DUPLICATE KEY UPDATE
 -- Productos disponibles para el paso de Candy.
 INSERT INTO servicios (id, nombre, descripcion, precio, activo)
 VALUES
-    (1, 'Combo clásico', 'Pochoclos grandes y dos gaseosas.', 8500, TRUE),
-    (2, 'Pochoclos medianos', 'Pochoclos dulces o salados.', 4500, TRUE),
-    (3, 'Gaseosa', 'Vaso de gaseosa de 500 ml.', 3000, TRUE),
-    (4, 'Nachos con queso', 'Porción de nachos con salsa de queso.', 5200, TRUE)
+    (1, 'Combo Paradiso', 'Pochoclos grandes y dos gaseosas medianas.', 14800, TRUE),
+    (2, 'Combo Dúo', 'Pochoclos medianos y dos gaseosas chicas.', 11200, TRUE),
+    (3, 'Pochoclos clásicos', 'Pochoclos acaramelados tamaño grande.', 6800, TRUE),
+    (4, 'Gaseosa mediana', 'Vaso de 500 ml, sabor a elección.', 4200, TRUE),
+    (5, 'Nachos con cheddar', 'Nachos crocantes con salsa de cheddar.', 5900, TRUE),
+    (6, 'Chocolate', 'Chocolate con leche de 100 gramos.', 3500, TRUE),
+    (7, 'Café con leche', 'Café suave con leche espumada.', 3900, TRUE),
+    (8, 'Helado individual', 'Pote individual, sabor a elección.', 4700, TRUE)
 ON DUPLICATE KEY UPDATE
     nombre = VALUES(nombre),
     descripcion = VALUES(descripcion),
