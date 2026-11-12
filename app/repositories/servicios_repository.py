@@ -2,12 +2,18 @@
 from app.db import get_db_connection
 
 
-def obtener_todos_los_servicios():
-    """Obtiene todos los servicios registrados, tanto activos como inactivos."""
+def obtener_todos_los_servicios(incluir_inactivos=True):
+    """Obtiene servicios ordenados y permite excluir los inactivos."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        query = "SELECT id, nombre, descripcion, precio, activo FROM servicios"
+        query = """
+            SELECT id, nombre, descripcion, precio, activo
+            FROM servicios
+        """
+        if not incluir_inactivos:
+            query += " WHERE activo = TRUE"
+        query += " ORDER BY id"
         cursor.execute(query)
         return cursor.fetchall()
     finally:
@@ -53,6 +59,9 @@ def crear_servicio(nombre: str, descripcion: str, precio: int, activo: bool = Tr
         cursor.execute(query, (nombre, descripcion, precio, activo))
         conn.commit()
         return cursor.lastrowid
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -72,6 +81,9 @@ def actualizar_servicio(servicio_id: int, campos: dict):
         query = f"UPDATE servicios SET {', '.join(set_clauses)} WHERE id = %s"
         cursor.execute(query, tuple(valores))
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -85,6 +97,9 @@ def dar_de_baja_servicio(servicio_id: int):
         query = "UPDATE servicios SET activo = FALSE WHERE id = %s"
         cursor.execute(query, (servicio_id,))
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -109,4 +124,5 @@ def buscar_servicios_por_ids(conexion, servicio_ids):
         cursor.close()
 
 def eliminar_servicio(servicio_id):
-    return "servicio eliminado"
+    """Compatibilidad: eliminar un servicio realiza una baja lógica."""
+    dar_de_baja_servicio(servicio_id)

@@ -11,10 +11,10 @@ from app.routes.entradas import entradas_bp
 from app.routes.salas import salas_bp
 from app.routes.servicios import servicios_bp
 
-def create_app():
+def create_app(config_object=config):
     app = Flask(__name__)
 
-    app.config.from_object(config)
+    app.config.from_object(config_object)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cartelera_bp)
