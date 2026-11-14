@@ -24,7 +24,18 @@ def bloquear_butacas(conexion, sala_id, butaca_ids):
 def buscar_ocupaciones_butacas(conexion, funcion_id, butaca_ids):
     marcadores = ", ".join(["%s"] * len(butaca_ids))
     consulta = f"""
-        SELECT id, butaca_id, estado, reserva_hasta
+        SELECT
+            id,
+            butaca_id,
+            estado,
+            reserva_hasta,
+            reserva_id,
+            CASE
+                WHEN reserva_hasta IS NOT NULL
+                     AND reserva_hasta > UTC_TIMESTAMP()
+                THEN TRUE
+                ELSE FALSE
+            END AS vigente
         FROM butacas_funcion
         WHERE funcion_id = %s
           AND butaca_id IN ({marcadores})
@@ -78,15 +89,18 @@ def crear_compra(
     conexion,
     usuario_id,
     funcion_id,
+    reserva_id,
     medio_pago,
     total_entradas,
     total_servicios,
     total,
+    estado="pendiente_pago",
 ):
     consulta = """
         INSERT INTO compras (
             usuario_id,
             funcion_id,
+            reserva_id,
             estado,
             medio_pago,
             fecha_hora,
@@ -94,11 +108,13 @@ def crear_compra(
             total_servicios,
             total
         )
-        VALUES (%s, %s, 'confirmada', %s, CURRENT_TIMESTAMP, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, UTC_TIMESTAMP(), %s, %s, %s)
     """
     parametros = (
         usuario_id,
         funcion_id,
+        reserva_id,
+        estado,
         medio_pago,
         total_entradas,
         total_servicios,
@@ -154,6 +170,7 @@ def listar_compras(conexion, usuario_id=None, estado=None):
             c.id,
             c.usuario_id,
             c.funcion_id,
+            c.reserva_id,
             c.estado,
             c.medio_pago,
             c.fecha_hora,
@@ -181,6 +198,7 @@ def buscar_compra_por_id(conexion, compra_id, bloquear=False):
             c.id,
             c.usuario_id,
             c.funcion_id,
+            c.reserva_id,
             c.estado,
             c.medio_pago,
             c.fecha_hora,
@@ -221,6 +239,24 @@ def listar_servicios_compra(conexion, compra_id):
         cursor.close()
 
 
+def confirmar_compra(conexion, compra_id):
+    cursor = conexion.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE compras
+            SET estado = 'confirmada',
+                fecha_hora = UTC_TIMESTAMP()
+            WHERE id = %s
+              AND estado = 'pendiente_pago'
+            """,
+            (compra_id,),
+        )
+        return cursor.rowcount
+    finally:
+        cursor.close()
+
+
 def cancelar_compra(conexion, compra_id, motivo):
     consulta = """
         UPDATE compras
@@ -240,7 +276,8 @@ def liberar_butacas_compra(conexion, compra_id):
         UPDATE butacas_funcion AS bf
         INNER JOIN entradas AS e ON e.butaca_funcion_id = bf.id
         SET bf.estado = 'disponible',
-            bf.reserva_hasta = NULL
+            bf.reserva_hasta = NULL,
+            bf.reserva_id = NULL
         WHERE e.compra_id = %s
     """
     cursor = conexion.cursor()

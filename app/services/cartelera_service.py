@@ -130,9 +130,22 @@ def consultar_butacas_funcion(funcion_id):
             funcion["sala_id"]
         )
 
+        for butaca in butacas:
+            expira_en = butaca.get("expira_en")
+            if expira_en is not None:
+                butaca["expira_en"] = (
+                    expira_en.replace(tzinfo=ZoneInfo("UTC"))
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                )
+
         return {
             "funcion_id": funcion_id,
-            "butacas": butacas
+            "total_butacas": len(butacas),
+            "butacas_libres": sum(
+                butaca["estado"] == "disponible" for butaca in butacas
+            ),
+            "butacas": butacas,
         }
 
     finally:
