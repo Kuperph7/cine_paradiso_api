@@ -263,3 +263,32 @@ OPCIONES_FILTROS = {
         "Cine de Culto", "Clásicos",
     ),
 }
+
+
+def validar_filtros_multiples(args):
+    filtros = {}
+
+    for campo, opciones in OPCIONES_FILTROS.items():
+        valores = []
+
+        for valor in args.getlist(campo):
+            valor = valor.strip()
+
+            if not valor:
+                continue
+
+            if valor not in opciones:
+                return respuesta_error(
+                    400,
+                    "FILTRO_INVALIDO",
+                    "Filtro inválido",
+                    f"El valor seleccionado para {campo} no es válido.",
+                    campo=campo,
+                )
+
+            if valor not in valores:
+                valores.append(valor)
+
+        filtros[campo] = valores
+
+    return filtros
