@@ -15,6 +15,7 @@ from app.services.admin_service import (
     crear_pelicula as crear_pelicula_service,
     listar_peliculas as listar_peliculas_service,
     obtener_estadisticas as obtener_estadisticas_service,
+    obtener_pelicula_externa as obtener_pelicula_externa_service,
     listar_servicios,
     crear_servicio,
     modificar_servicio,
@@ -165,6 +166,23 @@ def buscar_peliculas_externas():
     resultado = buscar_peliculas_externas_service(titulo)
     if es_respuesta_error(resultado):
         return resultado
+    return jsonify(resultado), 200
+
+
+@admin_bp.route("/peliculas/externas/<int:id_externo>", methods=["GET"])
+def obtener_pelicula_externa(id_externo):
+    identidad = requerir_administrador()
+    if es_respuesta_error(identidad):
+        return identidad
+
+    error = validar_pelicula_id(id_externo)
+    if es_respuesta_error(error):
+        return error
+
+    resultado = obtener_pelicula_externa_service(id_externo)
+    if es_respuesta_error(resultado):
+        return resultado
+
     return jsonify(resultado), 200
 
 

@@ -5,6 +5,7 @@ import requests
 
 BUSQUEDA_URL = "https://api.themoviedb.org/3/search/movie"
 IMAGEN_BASE_URL = "https://image.tmdb.org/t/p/w500"
+DETALLE_URL = "https://api.themoviedb.org/3/movie"
 
 def buscar_peliculas(titulo, api_key, timeout=5):
     try:
@@ -63,3 +64,99 @@ def buscar_peliculas(titulo, api_key, timeout=5):
 
     return peliculas
 
+
+def _clasificacion_argentina(datos):
+    estrenos = datos.get("release_dates")
+    if not isinstance(estrenos, dict):
+        return ""
+
+    paises = estrenos.get("results", [])
+    if not isinstance(paises, list):
+        return ""
+
+    for pais in paises:
+        if not isinstance(pais, dict) or pais.get("iso_3166_1") != "AR":
+            continue
+
+        fechas = pais.get("release_dates", [])
+        if not isinstance(fechas, list):
+            continue
+
+        # Prioriza la clasificación del estreno en cines.
+        for tipo in (3, 2, 1, 4, 5, 6):
+            for estreno in fechas:
+                if not isinstance(estreno, dict) or estreno.get("type") != tipo:
+                    continue
+
+                clasificacion = estreno.get("certification")
+                if isinstance(clasificacion, str) and clasificacion.strip():
+                    return clasificacion.strip()
+
+    return ""
+
+
+def obtener_pelicula(id_externo, api_key, timeout=5):
+    try:
+        respuesta = requests.get(
+            f"{DETALLE_URL}/{id_externo}",
+            params={
+                "api_key": api_key,
+                "language": "es-AR",
+                "append_to_response": "release_dates",
+            },
+            timeout=timeout,
+        )
+        respuesta.raise_for_status()
+        datos = respuesta.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    if not isinstance(datos, dict):
+        return None
+
+    titulo = datos.get("title")
+    if not isinstance(titulo, str) or not titulo.strip():
+        return None
+
+    generos = datos.get("genres", [])
+    if not isinstance(generos, list):
+        generos = []
+
+    nombres_generos = []
+    for genero in generos:
+        if not isinstance(genero, dict):
+            continue
+
+        nombre = genero.get("name")
+        if isinstance(nombre, str) and nombre.strip():
+            nombre = nombre.strip()
+            if nombre not in nombres_generos:
+                nombres_generos.append(nombre)
+
+    duracion = datos.get("runtime")
+    if type(duracion) is not int or duracion <= 0:
+        duracion = None
+
+    sinopsis = datos.get("overview")
+    if not isinstance(sinopsis, str):
+        sinopsis = ""
+
+    poster = datos.get("poster_path")
+    poster_url = ""
+    if isinstance(poster, str) and poster.startswith("/"):
+        poster_url = f"{IMAGEN_BASE_URL}{poster}"
+
+    return {
+        "id_externo": id_externo,
+        "titulo": titulo.strip(),
+        "sinopsis": sinopsis,
+        "poster_url": poster_url,
+        "duracion_minutos": duracion,
+        "clasificacion": _clasificacion_argentina(datos),
+        "genero": ", ".join(nombres_generos),
+        "generos_tmdb": [
+            genero["id"]
+            for genero in generos
+            if isinstance(genero, dict) and type(genero.get("id")) is int
+        ],
+    }
