@@ -5,6 +5,7 @@ from mysql.connector import IntegrityError
 from app.db import get_db_connection
 from app.errors import respuesta_error, es_respuesta_error
 from app.integrations.peliculas_api import buscar_peliculas as buscar_en_tmdb
+from app.integrations.peliculas_api import obtener_pelicula as obtener_de_tmdb
 from app.repositories import servicios_repository
 from app.repositories.peliculas_repository import (
     actualizar_pelicula as guardar_cambios_pelicula,
@@ -23,9 +24,24 @@ from app.repositories.estadisticas_repository import (
 
 from app.repositories.categorias_repository import (
     existen_categorias,
+    listar_categorias,
     listar_categorias_pelicula,
     reemplazar_categorias_pelicula,
 )
+
+CATEGORIAS_TMDB = {
+    18: "Drama",
+    28: "Acción",
+    12: "Aventura",
+    878: "Ciencia Ficción",
+    27: "Terror / Horror",
+    35: "Comedia",
+    53: "Suspenso / Thriller",
+    16: "Animación / Infantil",
+    10751: "Animación / Infantil",
+    99: "Documental",
+    10749: "Romance",
+}
 
 def listar_servicios() -> dict:
     """Lista todos los servicios adicionales."""
@@ -160,6 +176,45 @@ def buscar_peliculas_externas(titulo):
         )
 
     return {"peliculas": peliculas}
+
+
+def obtener_pelicula_externa(id_externo):
+    api_key = current_app.config.get("MOVIES_API_KEY")
+    if not api_key:
+        return respuesta_error(
+            503,
+            "CATALOGO_NO_CONFIGURADO",
+            "Catálogo externo no disponible",
+            "Falta configurar MOVIES_API_KEY.",
+        )
+
+    pelicula = obtener_de_tmdb(id_externo, api_key)
+    if pelicula is None:
+        return respuesta_error(
+            502,
+            "ERROR_CATALOGO_EXTERNO",
+            "Catálogo externo no disponible",
+            "No fue posible obtener los datos de la película.",
+        )
+
+    nombres_categorias = {
+        CATEGORIAS_TMDB[genero_id]
+        for genero_id in pelicula.pop("generos_tmdb", [])
+        if genero_id in CATEGORIAS_TMDB
+    }
+
+    conexion = get_db_connection()
+    try:
+        categorias = listar_categorias(conexion)
+        pelicula["categoria_ids"] = [
+            categoria["id"]
+            for categoria in categorias
+            if categoria["nombre"] in nombres_categorias
+        ]
+    finally:
+        conexion.close()
+
+    return {"pelicula": pelicula}
 
 
 def _conflicto_pelicula():
