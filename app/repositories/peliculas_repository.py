@@ -209,6 +209,9 @@ def crear_pelicula(conexion, datos):
 
 def actualizar_pelicula(conexion, pelicula_id, cambios):
     campos = [campo for campo in CAMPOS_ACTUALIZABLES if campo in cambios]
+    if not campos:
+        return
+
     asignaciones = ", ".join(f"{campo} = %s" for campo in campos)
     parametros = [cambios[campo] for campo in campos]
     parametros.append(pelicula_id)
