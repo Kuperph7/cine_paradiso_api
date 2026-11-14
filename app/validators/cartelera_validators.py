@@ -54,6 +54,8 @@ CAMPOS_FUNCION = {
     "fecha_hora",
     "precio",
     "estado",
+    "formato",
+    "idioma",
 }
 CAMPOS_FUNCION_REQUERIDOS = {
     "pelicula_id",
@@ -177,6 +179,20 @@ def _validar_cuerpo(datos, requeridos, requiere_al_menos_un_campo=False):
             return valor
         resultado["estado"] = valor
 
+    for campo in ("formato", "idioma"):
+        if campo in resultado:
+            valor = resultado[campo]
+            if (
+                not isinstance(valor, str)
+                or valor.strip() not in OPCIONES_FILTROS[campo]
+            ):
+                return _error(
+                    "CAMPO_INVALIDO",
+                    f"El valor de {campo} no es válido.",
+                )
+
+            resultado[campo] = valor.strip()
+
     return resultado
 
 
@@ -234,3 +250,16 @@ def validar_filtros_funciones(args):
 
 def validar_funcion_id(funcion_id):
     return _entero_positivo(funcion_id, "funcion_id")
+
+
+# Validar filtros de selección múltiple (formato, idioma, categoria)
+OPCIONES_FILTROS = {
+    "formato": ("2D", "3D", "4D", "Confort"),
+    "idioma": ("Castellano", "Subtitulada"),
+    "categoria": (
+        "Drama", "Acción", "Aventura", "Ciencia Ficción",
+        "Terror / Horror", "Comedia", "Suspenso / Thriller",
+        "Animación / Infantil", "Documental", "Romance",
+        "Cine de Culto", "Clásicos",
+    ),
+}
