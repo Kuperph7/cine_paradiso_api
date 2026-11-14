@@ -50,10 +50,19 @@ def obtener_entrada_por_qr(codigo_qr: str, funcion_id: int):
     cursor = conn.cursor(dictionary=True)
     try:
         query = """
-            SELECT id, compra_id, funcion_id, butaca_id,
-                   precio, codigo_qr, estado
-            FROM entradas
-            WHERE codigo_qr = %s AND funcion_id = %s
+            SELECT
+                e.id,
+                e.compra_id,
+                bf.funcion_id,
+                bf.butaca_id,
+                e.precio,
+                e.codigo_qr,
+                e.estado
+            FROM entradas AS e
+            INNER JOIN butacas_funcion AS bf
+                ON bf.id = e.butaca_funcion_id
+            WHERE e.codigo_qr = %s
+              AND bf.funcion_id = %s
         """
         cursor.execute(query, (codigo_qr, funcion_id))
         return cursor.fetchone()
@@ -71,7 +80,7 @@ def marcar_entrada_utilizada(entrada_id: int) -> int:
         query = """
             UPDATE entradas
             SET estado = 'utilizada', fecha_hora_validacion = %s
-            WHERE id = %s AND estado = 'emitida'
+            WHERE id = %s AND estado = 'vigente'
         """
         cursor.execute(query, (ahora, entrada_id))
         conn.commit()

@@ -37,6 +37,12 @@ services:
       DB_USER: ${DB_USER:-cine_user}
       DB_PASSWORD: ${DB_PASSWORD:-cine_password}
       MOVIES_API_KEY: ${MOVIES_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-entradas@cineparadiso.local}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
     ports:
       - "${API_PORT:-5000}:5000"
     depends_on:
@@ -69,6 +75,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
     init: true
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
 
 volumes:
   mysql_data:

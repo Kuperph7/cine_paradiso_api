@@ -30,6 +30,12 @@ from app.repositories.entradas_repository import (
 from app.repositories.funciones_repository import buscar_funcion_para_compra
 from app.repositories.servicios_repository import buscar_servicios_por_ids
 
+import logging
+import os
+
+from app.integrations.email import enviar_entradas_por_email
+from app.repositories.usuarios_repository import obtener_usuario_por_id
+
 
 ZONA_HORARIA = ZoneInfo("America/Argentina/Buenos_Aires")
 PLAZO_CANCELACION = timedelta(hours=1)
@@ -278,10 +284,30 @@ def crear_compra(usuario_id, datos):
                 generar_token_qr(),
             )
 
+
         compra = buscar_compra_por_id(conexion, compra_id)
         resultado = _completar_compra(conexion, compra)
         conexion.commit()
+
+        # La compra ya está guardada antes de intentar enviar el correo.
+        if os.getenv("SMTP_HOST") and os.getenv("SMTP_FROM"):
+            try:
+                usuario = obtener_usuario_por_id(usuario_id)
+
+                if usuario and usuario.get("email"):
+                    enviar_entradas_por_email(
+                        usuario["email"],
+                        resultado,
+                    )
+
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "No se pudo enviar el correo de la compra %s",
+                    compra_id,
+                )
+
         return resultado
+
     except IntegrityError:
         conexion.rollback()
         return _conflicto_compra()
