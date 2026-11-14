@@ -1,0 +1,17 @@
+| ID | Funcionalidad | Historia de usuario | Criterios de aceptación propuestos |
+| --- | --- | --- | --- |
+| 01 | Iniciar sesión | Como cliente, quiero iniciar sesión para acceder a mi cuenta. | Con datos válidos, puedo entrar. Con datos incorrectos, aparece un error. |
+| 02 | Registrar cuenta | Como cliente, quiero registrar una cuenta para acceder a mis compras y consumos. | Con datos válidos se crea la cuenta y se permite iniciar sesión. Con datos inválidos se muestran errores y no se crea la cuenta. |
+| 03 | Consultar cartelera | Como cliente, quiero consultar la cartelera para elegir una película. | Se muestran las películas vigentes con sinopsis, póster, duración y clasificación, y se puede acceder a sus funciones disponibles. |
+| 04 | Ver detalle de película | Como cliente, quiero ver el detalle de una película para decidir si me interesa. | Se muestran sinopsis, póster, duración y clasificación de la película seleccionada. |
+| 05 | Consultar funciones | Como cliente, quiero consultar las funciones para elegir dónde y cuándo ver una película. | Se muestran local, sala, fecha y horario. Si no hay funciones disponibles, se informa. |
+| 06 | Consultar disponibilidad | Como cliente, quiero consultar la disponibilidad de butacas para saber si hay lugar. | Se muestra la capacidad de la sala y se distinguen butacas libres y ocupadas para la función seleccionada. |
+| 07 | Seleccionar butacas | Como cliente, quiero seleccionar butacas para decidir dónde sentarme. | Solo puedo seleccionar butacas libres. Una butaca no puede venderse dos veces para la misma función. |
+| 08 | Comprar entradas | Como cliente, quiero comprar entradas para asistir a la función elegida. | La compra queda asociada a la función y a las butacas elegidas. Se comprueba la disponibilidad antes de confirmar. |
+| 09 | Comprar servicios | Como cliente, quiero comprar servicios adicionales para complementar mi visita. | Puedo agregar los servicios disponibles, como comida, bebidas, estacionamiento o acceso VIP. |
+| 10 | Completar checkout | Como cliente, quiero completar el checkout para finalizar mi compra. | Veo las entradas, los servicios y el total antes de confirmar. Al confirmar, la compra queda registrada y se envían al correo la factura y el QR. |
+| 11 | Recibir factura y QR | Como cliente, quiero recibir la factura y el QR por correo para conservar el comprobante e ingresar a la sala. | Recibo la confirmación, la factura y el QR con los datos de la compra. |
+| 12 | Cancelar compra | Como cliente, quiero cancelar mi compra si no puedo asistir. | Puedo cancelar dentro del plazo permitido. Después de cancelar, el QR queda invalidado. Fuera del plazo, se rechaza la cancelación. |
+| 13 | Consultar consumos | Como cliente, quiero consultar mis consumos para revisar qué compré. | Mi perfil muestra mis compras de entradas y servicios. Si no tengo compras, lo informa. |
+| 14 | Consultar películas vistas | Como cliente, quiero consultar las películas que vi para recordar mis visitas al cine. | Se muestran las películas a cuyas funciones el cliente ingresó con un QR validado. |
+| 15 | Puntuar o reseñar | Como cliente, quiero puntuar o reseñar una película para compartir mi opinión después de verla. | Solo puedo hacerlo si mi QR de esa función fue validado. |

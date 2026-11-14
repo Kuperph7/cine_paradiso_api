@@ -1,0 +1,55 @@
+
+ // Modelo de datos de cartelera y salas
+
+Table locales {
+  id int [pk, increment]
+  nombre varchar(100) [not null]
+  direccion varchar(200) [not null]
+  activa boolean [not null, default: true]
+}
+
+Table salas {
+  id int [pk, increment]
+  local_id int [not null, ref: > locales.id]
+  nombre varchar(100) [not null]
+  filas int [not null]
+  butacas_por_fila int [not null]
+  activa boolean [not null, default: true]
+}
+
+Table butacas {
+  id int [pk, increment]
+  sala_id int [not null, ref: > salas.id]
+  fila varchar(3) [not null]
+  numero int [not null]
+  activa boolean [not null, default: true]
+
+  indexes {
+    (sala_id, fila, numero) [unique]
+  }
+}
+
+Table peliculas {
+  id int [pk, increment]
+  id_externo int
+  titulo varchar(200) [not null]
+  sinopsis text [not null]
+  poster_url varchar(500) [not null]
+  duracion_minutos int [not null]
+  clasificacion varchar(20) [not null]
+  genero varchar(100) [not null]
+  activa boolean [not null, default: true]
+}
+
+Table funciones {
+  id int [pk, increment]
+  pelicula_id int [not null, ref: > peliculas.id]
+  sala_id int [not null, ref: > salas.id]
+  fecha_hora datetime [not null]
+  precio int [not null]
+  estado varchar(20) [not null, default: 'programada']
+
+  indexes {
+    (sala_id, fecha_hora) [unique]
+  }
+}
