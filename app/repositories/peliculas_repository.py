@@ -14,7 +14,10 @@ CAMPOS_ACTUALIZABLES = (
 
 
 # Issue #31 - Listar peliculas de la cartelera
-def listar_peliculas_cartelera(conexion, local_id=None, fecha=None):
+def listar_peliculas_cartelera(
+    conexion, local_id=None, fecha=None,
+    formatos=None, idiomas=None, categorias=None
+):
     consulta = """
         SELECT DISTINCT
             p.id,
@@ -37,7 +40,6 @@ def listar_peliculas_cartelera(conexion, local_id=None, fecha=None):
           AND f.estado = 'programada'
           AND f.fecha_hora >= NOW()
     """
-
     parametros = []
 
     if local_id is not None:
@@ -48,8 +50,30 @@ def listar_peliculas_cartelera(conexion, local_id=None, fecha=None):
         consulta += " AND DATE(f.fecha_hora) = %s"
         parametros.append(fecha)
 
-    consulta += " ORDER BY p.titulo"
+    if formatos:
+        marcadores = ", ".join(["%s"] * len(formatos))
+        consulta += f" AND f.formato IN ({marcadores})"
+        parametros.extend(formatos)
 
+    if idiomas:
+        marcadores = ", ".join(["%s"] * len(idiomas))
+        consulta += f" AND f.idioma IN ({marcadores})"
+        parametros.extend(idiomas)
+
+    if categorias:
+        marcadores = ", ".join(["%s"] * len(categorias))
+        consulta += f"""
+            AND EXISTS (
+                SELECT 1
+                FROM peliculas_categorias AS pc
+                INNER JOIN categorias AS c ON c.id = pc.categoria_id
+                WHERE pc.pelicula_id = p.id
+                AND c.nombre IN ({marcadores})
+            )
+        """
+        parametros.extend(categorias)
+
+    consulta += " ORDER BY p.titulo, p.id"
     cursor = conexion.cursor(dictionary=True)
 
     try:
@@ -209,6 +233,9 @@ def crear_pelicula(conexion, datos):
 
 def actualizar_pelicula(conexion, pelicula_id, cambios):
     campos = [campo for campo in CAMPOS_ACTUALIZABLES if campo in cambios]
+    if not campos:
+        return
+
     asignaciones = ", ".join(f"{campo} = %s" for campo in campos)
     parametros = [cambios[campo] for campo in campos]
     parametros.append(pelicula_id)

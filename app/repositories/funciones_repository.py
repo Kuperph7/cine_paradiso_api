@@ -8,6 +8,8 @@ CAMPOS_ACTUALIZABLES = (
     "fecha_hora",
     "precio",
     "estado",
+    "formato",
+    "idioma",
 )
 
 
@@ -18,6 +20,8 @@ def listar_funciones_de_pelicula(conexion, pelicula_id):
             f.id,
             f.fecha_hora,
             f.precio,
+            f.formato,
+            f.idioma,
             s.id AS sala_id,
             s.nombre AS sala_nombre,
             l.id AS local_id,
@@ -90,6 +94,8 @@ def listar_funciones(
             f.sala_id,
             f.fecha_hora,
             f.precio,
+            f.formato,
+            f.idioma,
             f.estado
         FROM funciones AS f
         INNER JOIN peliculas AS p
@@ -117,6 +123,8 @@ def buscar_funcion_cartelera(conexion, funcion_id):
             f.sala_id,
             f.fecha_hora,
             f.precio,
+            f.formato,
+            f.idioma,
             f.estado
         FROM funciones AS f
         INNER JOIN salas AS s
@@ -146,7 +154,7 @@ def buscar_funcion_por_id(conexion, funcion_id, bloquear=False):
     bloqueo = " FOR UPDATE" if bloquear else ""
 
     consulta = f"""
-        SELECT id, pelicula_id, sala_id, fecha_hora, precio, estado
+        SELECT id, pelicula_id, sala_id, fecha_hora, precio, estado, formato, idioma
         FROM funciones
         WHERE id = %s{bloqueo}
     """
@@ -190,8 +198,8 @@ def existe_funcion_en_horario(
 def crear_funcion(conexion, datos):
     consulta = """
         INSERT INTO funciones
-            (pelicula_id, sala_id, fecha_hora, precio, estado)
-        VALUES (%s, %s, %s, %s, %s)
+            (pelicula_id, sala_id, fecha_hora, precio, estado,formato,idioma)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
     """
 
     parametros = (
@@ -200,6 +208,8 @@ def crear_funcion(conexion, datos):
         datos["fecha_hora"],
         datos["precio"],
         datos["estado"],
+        datos.get("formato"),
+        datos.get("idioma"),
     )
 
     cursor = conexion.cursor()

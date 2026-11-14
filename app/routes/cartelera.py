@@ -20,6 +20,7 @@ from app.services.cartelera_service import (
 
 from app.validators.cartelera_validators import (
     validar_filtros_cartelera,
+    validar_filtros_multiples,
     validar_actualizacion_funcion,
     validar_creacion_funcion,
     validar_filtros_funciones,
@@ -36,9 +37,20 @@ def listar_cartelera():
     filtros = validar_filtros_cartelera(request.args)
     if es_respuesta_error(filtros):
         return filtros
-    local_id, fecha = filtros
 
-    resultado = consultar_peliculas(local_id, fecha)
+    multiples = validar_filtros_multiples(request.args)
+    if es_respuesta_error(multiples):
+        return multiples
+
+    local_id, fecha = filtros
+    resultado = consultar_peliculas(
+        local_id=local_id,
+        fecha=fecha,
+        formatos=multiples["formato"],
+        idiomas=multiples["idioma"],
+        categorias=multiples["categoria"],
+    )
+
     if es_respuesta_error(resultado):
         return resultado
 
