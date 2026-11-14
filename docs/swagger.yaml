@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: Cine Paradiso API
-  version: 2.0.0
+  version: 3.0.0
   description: |
     Contrato unificado para autenticación, cartelera, compras, entradas y
     administración. Las rutas representan recursos, no roles. La autorización
@@ -16,6 +16,8 @@ tags:
   - name: Autenticación
   - name: Cartelera
   - name: Compras
+  - name: Reservas
+  - name: Pagos
   - name: Entradas
   - name: Películas
   - name: Funciones
@@ -316,6 +318,158 @@ paths:
               schema: { $ref: '#/components/schemas/ButacasFuncionLista' }
         '404': { $ref: '#/components/responses/Error404' }
 
+  /funciones/{funcion_id}/reservas:
+    post:
+      tags: [Reservas]
+      operationId: retenerButacas
+      summary: Retener butacas durante cinco minutos
+      description: |
+        Crea una retención atómica: se reservan todas las butacas o ninguna.
+        Repetir exactamente la misma selección propia devuelve la reserva
+        existente sin extender `expira_en`.
+      x-roles: [usuario, administrador]
+      parameters:
+        - $ref: '#/components/parameters/FuncionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReservaCreate' }
+      responses:
+        '201':
+          description: Reserva temporal creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '200':
+          description: Reintento idempotente de la misma reserva
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /reservas/activa:
+    get:
+      tags: [Reservas]
+      operationId: obtenerReservaActiva
+      summary: Recuperar la compra en curso del usuario
+      description: |
+        Devuelve la retención o el pago pendiente todavía vigente para que el
+        cliente pueda continuar el checkout desde la cartelera.
+      responses:
+        '200':
+          description: Reserva activa o `null` cuando no existe una
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservaActivaResponse' }
+        '401': { $ref: '#/components/responses/Error401' }
+
+  /reservas/{reserva_id}:
+    get:
+      tags: [Reservas]
+      operationId: obtenerReserva
+      summary: Consultar una reserva propia
+      parameters:
+        - $ref: '#/components/parameters/ReservaId'
+      responses:
+        '200':
+          description: Estado y vencimiento calculados por el servidor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '410': { $ref: '#/components/responses/Error410' }
+    delete:
+      tags: [Reservas]
+      operationId: cancelarReserva
+      summary: Cancelar una retención propia
+      description: No permite cancelar un pago que requiere conciliación.
+      parameters:
+        - $ref: '#/components/parameters/ReservaId'
+      responses:
+        '200':
+          description: Reserva cancelada y butacas liberadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        '410': { $ref: '#/components/responses/Error410' }
+
+  /reservas/{reserva_id}/pagos:
+    post:
+      tags: [Pagos]
+      operationId: iniciarPagoReserva
+      summary: Iniciar un pago pendiente
+      description: |
+        Cambia las butacas a `pago_en_proceso` durante cinco minutos y crea
+        una compra pendiente. No emite entradas ni confirma el pago.
+      parameters:
+        - $ref: '#/components/parameters/ReservaId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PagoInicio' }
+      responses:
+        '202':
+          description: Pago pendiente creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '200':
+          description: Reintento idempotente del mismo pago
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reserva' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '409': { $ref: '#/components/responses/Error409' }
+        '410': { $ref: '#/components/responses/Error410' }
+
+  /reservas/{reserva_id}/pagos/simular:
+    post:
+      tags: [Pagos]
+      operationId: resolverPagoSimulado
+      summary: Aprobar o cancelar el pago ficticio de la demo
+      description: |
+        Aprobar confirma la compra y emite las entradas; cancelar rechaza el
+        pago y libera las butacas.
+      parameters:
+        - $ref: '#/components/parameters/ReservaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PagoSimulado' }
+      responses:
+        '200':
+          description: Compra confirmada o reserva con pago cancelado
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Compra'
+                  - $ref: '#/components/schemas/Reserva'
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        '410': { $ref: '#/components/responses/Error410' }
+
   /salas:
     get:
       tags: [Salas]
@@ -540,11 +694,11 @@ paths:
     post:
       tags: [Compras]
       operationId: crearCompra
-      summary: Comprar entradas y servicios
+      summary: Compra directa deshabilitada
+      deprecated: true
       description: |
-        Reserva las butacas, agrega los servicios seleccionados, calcula los
-        importes con precios vigentes y genera una entrada por butaca. Toda la
-        operación es atómica.
+        Conservado para responder de forma explícita a clientes anteriores.
+        Siempre devuelve 409: se debe crear una reserva e iniciar el pago.
       x-roles: [usuario, administrador]
       requestBody:
         required: true
@@ -559,15 +713,7 @@ paths:
                   cantidad: 2
               medio_pago: tarjeta
       responses:
-        '201':
-          description: Compra confirmada y entradas generadas
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Compra' }
-        '400': { $ref: '#/components/responses/Error400' }
         '401': { $ref: '#/components/responses/Error401' }
-        '403': { $ref: '#/components/responses/Error403' }
-        '404': { $ref: '#/components/responses/Error404' }
         '409': { $ref: '#/components/responses/Error409' }
 
   /compras/{compra_id}:
@@ -767,6 +913,12 @@ components:
       required: true
       schema: { type: integer, minimum: 1 }
       example: 99
+    ReservaId:
+      name: reserva_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: 45f2070b-2f2a-44bc-a4dc-2b40556680ed
 
   responses:
     Error400:
@@ -791,6 +943,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     Error409:
       description: Conflicto con el estado del recurso o una regla de negocio
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error410:
+      description: La reserva o el plazo de pago venció
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -1001,7 +1158,7 @@ components:
 
     EstadoButaca:
       type: string
-      enum: [disponible, ocupada]
+      enum: [disponible, retenida, pago_en_proceso, vendida]
       example: disponible
 
     ButacaFuncion:
@@ -1012,12 +1169,19 @@ components:
         fila: { type: string, example: B }
         numero: { type: integer, minimum: 1, example: 7 }
         estado: { $ref: '#/components/schemas/EstadoButaca' }
+        expira_en:
+          type: string
+          format: date-time
+          nullable: true
+          description: Vencimiento UTC sólo para una retención o pago vigente.
 
     ButacasFuncionLista:
       type: object
-      required: [funcion_id, butacas]
+      required: [funcion_id, total_butacas, butacas_libres, butacas]
       properties:
         funcion_id: { type: integer, minimum: 1, example: 3 }
+        total_butacas: { type: integer, minimum: 0, example: 48 }
+        butacas_libres: { type: integer, minimum: 0, example: 42 }
         butacas:
           type: array
           items: { $ref: '#/components/schemas/ButacaFuncion' }
@@ -1074,7 +1238,7 @@ components:
 
     EstadoCompra:
       type: string
-      enum: [confirmada, cancelada]
+      enum: [pendiente_pago, confirmada, cancelada, fallida]
       example: confirmada
 
     CompraCreate:
@@ -1096,6 +1260,84 @@ components:
           description: Una entrada por servicio adicional seleccionado; no se repiten identificadores.
           items: { $ref: '#/components/schemas/ServicioSeleccionado' }
         medio_pago: { $ref: '#/components/schemas/MedioPago' }
+
+    ReservaCreate:
+      type: object
+      additionalProperties: false
+      required: [butaca_ids]
+      properties:
+        butaca_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 1 }
+          example: [17, 18]
+
+    EstadoReserva:
+      type: string
+      enum:
+        - retenida
+        - pago_en_proceso
+        - vendida
+        - cancelada
+        - vencida
+        - pago_rechazado
+
+    ButacaReserva:
+      type: object
+      required: [id, fila, numero]
+      properties:
+        id: { type: integer, minimum: 1, example: 17 }
+        fila: { type: string, example: B }
+        numero: { type: integer, minimum: 1, example: 7 }
+
+    Reserva:
+      type: object
+      required: [id, usuario_id, funcion_id, estado, creada_en, expira_en, butacas]
+      properties:
+        id: { type: string, format: uuid }
+        usuario_id: { type: integer, minimum: 1 }
+        funcion_id: { type: integer, minimum: 1 }
+        estado: { $ref: '#/components/schemas/EstadoReserva' }
+        creada_en: { type: string, format: date-time }
+        expira_en:
+          type: string
+          format: date-time
+          description: Fuente de verdad UTC; consultar no modifica este valor.
+        compra_id: { type: integer, minimum: 1, nullable: true }
+        butacas:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ButacaReserva' }
+
+    ReservaActivaResponse:
+      type: object
+      required: [reserva]
+      properties:
+        reserva:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Reserva'
+
+    PagoInicio:
+      type: object
+      additionalProperties: false
+      required: [medio_pago]
+      properties:
+        medio_pago: { $ref: '#/components/schemas/MedioPago' }
+        servicios:
+          type: array
+          default: []
+          items: { $ref: '#/components/schemas/ServicioSeleccionado' }
+
+    PagoSimulado:
+      type: object
+      additionalProperties: false
+      required: [resultado]
+      properties:
+        resultado:
+          type: string
+          enum: [aprobado, cancelado]
 
     CompraUpdate:
       type: object
@@ -1122,6 +1364,7 @@ components:
         id: { type: integer, minimum: 1, example: 25 }
         usuario_id: { type: integer, minimum: 1, example: 7 }
         funcion_id: { type: integer, minimum: 1, example: 3 }
+        reserva_id: { type: string, format: uuid, nullable: true }
         estado: { $ref: '#/components/schemas/EstadoCompra' }
         medio_pago: { $ref: '#/components/schemas/MedioPago' }
         fecha_hora: { type: string, format: date-time, example: '2026-11-02T15:30:00-03:00' }
@@ -1145,8 +1388,8 @@ components:
 
     EstadoEntrada:
       type: string
-      enum: [vigente, utilizada, cancelada]
-      example: vigente
+      enum: [emitida, utilizada, cancelada]
+      example: emitida
 
     Entrada:
       type: object

@@ -3,8 +3,9 @@ from flask import current_app
 from mysql.connector import IntegrityError
 
 from app.db import get_db_connection
-from app.errors import respuesta_error
+from app.errors import respuesta_error, es_respuesta_error
 from app.integrations.peliculas_api import buscar_peliculas as buscar_en_tmdb
+from app.integrations.peliculas_api import obtener_pelicula as obtener_de_tmdb
 from app.repositories import servicios_repository
 from app.repositories.peliculas_repository import (
     actualizar_pelicula as guardar_cambios_pelicula,
@@ -20,6 +21,27 @@ from app.repositories.estadisticas_repository import (
     obtener_ventas_por_franja,
     obtener_total_cancelaciones,
 )
+
+from app.repositories.categorias_repository import (
+    existen_categorias,
+    listar_categorias,
+    listar_categorias_pelicula,
+    reemplazar_categorias_pelicula,
+)
+
+CATEGORIAS_TMDB = {
+    18: "Drama",
+    28: "Acción",
+    12: "Aventura",
+    878: "Ciencia Ficción",
+    27: "Terror / Horror",
+    35: "Comedia",
+    53: "Suspenso / Thriller",
+    16: "Animación / Infantil",
+    10751: "Animación / Infantil",
+    99: "Documental",
+    10749: "Romance",
+}
 
 def listar_servicios() -> dict:
     """Lista todos los servicios adicionales."""
@@ -97,6 +119,27 @@ def _serializar_pelicula(pelicula):
     return resultado
 
 
+def _validar_categorias_pelicula(conexion, categoria_ids):
+    if not existen_categorias(conexion, categoria_ids):
+        return respuesta_error(
+            400,
+            "CATEGORIA_INVALIDA",
+            "Categoría inválida",
+            "Una o más categorías seleccionadas no existen.",
+            campo="categoria_ids",
+        )
+
+
+def _pelicula_con_categorias(conexion, pelicula):
+    resultado = _serializar_pelicula(pelicula)
+    categorias = listar_categorias_pelicula(conexion, pelicula["id"])
+    resultado["categorias"] = categorias
+    resultado["categoria_ids"] = [
+        categoria["id"] for categoria in categorias
+    ]
+    return resultado
+
+
 def listar_peliculas(filtros, es_administrador=False):
     conexion = get_db_connection()
     try:
@@ -106,7 +149,8 @@ def listar_peliculas(filtros, es_administrador=False):
             solo_publicadas=not es_administrador,
         )
         return {
-            "peliculas": [_serializar_pelicula(pelicula) for pelicula in peliculas]
+            "peliculas": [
+                _pelicula_con_categorias(conexion, pelicula)for pelicula in peliculas]
         }
     finally:
         conexion.close()
@@ -134,6 +178,45 @@ def buscar_peliculas_externas(titulo):
     return {"peliculas": peliculas}
 
 
+def obtener_pelicula_externa(id_externo):
+    api_key = current_app.config.get("MOVIES_API_KEY")
+    if not api_key:
+        return respuesta_error(
+            503,
+            "CATALOGO_NO_CONFIGURADO",
+            "Catálogo externo no disponible",
+            "Falta configurar MOVIES_API_KEY.",
+        )
+
+    pelicula = obtener_de_tmdb(id_externo, api_key)
+    if pelicula is None:
+        return respuesta_error(
+            502,
+            "ERROR_CATALOGO_EXTERNO",
+            "Catálogo externo no disponible",
+            "No fue posible obtener los datos de la película.",
+        )
+
+    nombres_categorias = {
+        CATEGORIAS_TMDB[genero_id]
+        for genero_id in pelicula.pop("generos_tmdb", [])
+        if genero_id in CATEGORIAS_TMDB
+    }
+
+    conexion = get_db_connection()
+    try:
+        categorias = listar_categorias(conexion)
+        pelicula["categoria_ids"] = [
+            categoria["id"]
+            for categoria in categorias
+            if categoria["nombre"] in nombres_categorias
+        ]
+    finally:
+        conexion.close()
+
+    return {"pelicula": pelicula}
+
+
 def _conflicto_pelicula():
     return respuesta_error(
         409,
@@ -145,7 +228,13 @@ def _conflicto_pelicula():
 
 def crear_pelicula(datos):
     conexion = get_db_connection()
+
     try:
+        categoria_ids = datos.get("categoria_ids", [])
+        error = _validar_categorias_pelicula(conexion, categoria_ids)
+        if es_respuesta_error(error):
+            return error
+
         id_externo = datos.get("id_externo")
         if id_externo is not None and buscar_pelicula_por_id_externo(
             conexion, id_externo
@@ -158,9 +247,15 @@ def crear_pelicula(datos):
             )
 
         pelicula_id = insertar_pelicula(conexion, datos)
+        if categoria_ids:
+            reemplazar_categorias_pelicula(
+                conexion, pelicula_id, categoria_ids
+            )
+
         pelicula = buscar_pelicula_por_id(conexion, pelicula_id)
+        resultado = _pelicula_con_categorias(conexion, pelicula)
         conexion.commit()
-        return _serializar_pelicula(pelicula)
+        return resultado
     except IntegrityError:
         conexion.rollback()
         return _conflicto_pelicula()
@@ -182,11 +277,25 @@ def actualizar_pelicula(pelicula_id, cambios):
                 "Película no encontrada",
                 "No existe una película con ese identificador.",
             )
+
+        if "categoria_ids" in cambios:
+            error = _validar_categorias_pelicula(
+                conexion, cambios["categoria_ids"]
+            )
+            if es_respuesta_error(error):
+                return error
         
         guardar_cambios_pelicula(conexion, pelicula_id, cambios)
+
+        if "categoria_ids" in cambios:
+            reemplazar_categorias_pelicula(
+                conexion, pelicula_id, cambios["categoria_ids"]
+            )
+
         pelicula = buscar_pelicula_por_id(conexion, pelicula_id)
+        resultado = _pelicula_con_categorias(conexion, pelicula)
         conexion.commit()
-        return _serializar_pelicula(pelicula)
+        return resultado
     except IntegrityError:
         conexion.rollback()
         return _conflicto_pelicula()

@@ -7,6 +7,9 @@ from app.validators.admin_validators import (
 )
 from app.validators.auth_validators import validate_role
 from app.validators.compras_validators import (
+    validar_creacion_reserva,
+    validar_inicio_pago,
+    validar_pago_simulado,
     validate_purchase_total,
     validate_seat_state,
     validate_service_line,
@@ -44,3 +47,16 @@ def test_invalid_service_quantity_returns_uniform_error():
 
     assert status == 400
     assert body["codigo"] == "DATOS_INVALIDOS"
+
+
+def test_validadores_del_flujo_de_reserva_y_pago():
+    assert validar_creacion_reserva({"butaca_ids": [1, 2]}) == {
+        "butaca_ids": [1, 2]
+    }
+    assert validar_inicio_pago({"medio_pago": "tarjeta"}) == {
+        "medio_pago": "tarjeta",
+        "servicios": [],
+    }
+    assert validar_pago_simulado({"resultado": "aprobado"}) == {
+        "resultado": "aprobado"
+    }

@@ -46,7 +46,7 @@ def _assert_error(response, status, code):
     assert set(body["detalles"][0]) == {"campo", "mensaje"}
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 404, 409])
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 409, 410])
 def test_api_errors_share_the_same_contract(status):
     body, returned_status = respuesta_error(
         status,

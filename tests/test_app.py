@@ -21,4 +21,10 @@ def test_ruta_butacas_respeta_swagger():
     assert "/cartelera/funciones/<int:funcion_id>/butacas" not in rutas
     assert "/funciones/<int:funcion_id>" in rutas
     assert "/peliculas/<int:pelicula_id>" in rutas
+    assert "/funciones/<int:funcion_id>/reservas" in rutas
+    assert "/reservas/<string:reserva_id>" in rutas
+    assert "/reservas/<string:reserva_id>/pagos" in rutas
+    assert "/reservas/<string:reserva_id>/pagos/simular" in rutas
+    assert "/reservas/activa" in rutas
+    assert "/pagos/confirmaciones" not in rutas
 
