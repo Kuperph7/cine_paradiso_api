@@ -33,18 +33,27 @@ ZONA_HORARIA = ZoneInfo("America/Argentina/Buenos_Aires")
 
 
 # Issue #31 - Listar peliculas
-def consultar_peliculas(local_id=None, fecha=None):
+def consultar_peliculas(
+    local_id=None, fecha=None,
+    formatos=None, idiomas=None, categorias=None
+):
     conexion = get_db_connection()
 
     try:
-        peliculas = listar_peliculas(conexion, local_id, fecha)
+        peliculas = listar_peliculas(
+            conexion,
+            local_id=local_id,
+            fecha=fecha,
+            formatos=formatos,
+            idiomas=idiomas,
+            categorias=categorias,
+        )
 
         for pelicula in peliculas:
             genero = pelicula.pop("genero", None)
             pelicula["generos"] = [genero] if genero else []
 
         return {"peliculas": peliculas}
-
     finally:
         conexion.close()
 
@@ -121,9 +130,22 @@ def consultar_butacas_funcion(funcion_id):
             funcion["sala_id"]
         )
 
+        for butaca in butacas:
+            expira_en = butaca.get("expira_en")
+            if expira_en is not None:
+                butaca["expira_en"] = (
+                    expira_en.replace(tzinfo=ZoneInfo("UTC"))
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                )
+
         return {
             "funcion_id": funcion_id,
-            "butacas": butacas
+            "total_butacas": len(butacas),
+            "butacas_libres": sum(
+                butaca["estado"] == "disponible" for butaca in butacas
+            ),
+            "butacas": butacas,
         }
 
     finally:

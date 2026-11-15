@@ -10,9 +10,21 @@ def listar_butacas_de_funcion(conexion, funcion_id, sala_id):
             b.fila,
             b.numero,
             CASE
-                WHEN bf.estado IN ('ocupada', 'reservada') THEN 'ocupada'
+                WHEN bf.estado IN ('vendida', 'ocupada') THEN 'vendida'
+                WHEN bf.estado = 'pago_en_proceso'
+                     AND bf.reserva_hasta > UTC_TIMESTAMP()
+                    THEN 'pago_en_proceso'
+                WHEN bf.estado IN ('retenida', 'reservada')
+                     AND bf.reserva_hasta > UTC_TIMESTAMP()
+                    THEN 'retenida'
                 ELSE 'disponible'
-            END AS estado
+            END AS estado,
+            CASE
+                WHEN bf.estado IN ('retenida', 'reservada', 'pago_en_proceso')
+                     AND bf.reserva_hasta > UTC_TIMESTAMP()
+                    THEN bf.reserva_hasta
+                ELSE NULL
+            END AS expira_en
         FROM butacas AS b
         LEFT JOIN butacas_funcion AS bf
             ON bf.butaca_id = b.id

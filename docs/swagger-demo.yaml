@@ -1,0 +1,1501 @@
+openapi: 3.0.3
+
+info:
+  title: Cine Paradiso API - Demo actual
+  version: 1.0.0-demo
+  description: |
+    Contrato descriptivo de las rutas registradas actualmente por la aplicación
+    Flask. A diferencia de `swagger.yaml`, este archivo conserva las rutas
+    históricas (`/cartelera`, `/mis-entradas` y `/admin/...`), los cuerpos de
+    respuesta y los permisos presentes en el código al 11 de noviembre de 2026.
+
+    Este documento describe el estado construido, no el contrato objetivo.
+    Las propiedades `x-implementation-note` señalan comportamientos incompletos
+    o defectos conocidos que afectan la ejecución de la demo.
+
+servers:
+  - url: http://localhost:5000
+    description: Backend Flask local
+
+tags:
+  - name: Autenticación
+  - name: Cartelera
+  - name: Funciones
+  - name: Salas
+  - name: Servicios públicos
+  - name: Administración de servicios
+  - name: Administración de películas
+  - name: Compras
+  - name: Entradas
+  - name: Estadísticas
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      operationId: registrarClienteActual
+      summary: Registrar un cliente
+      description: Crea un usuario con rol fijo `cliente`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegistroRequestActual' }
+      responses:
+        '201':
+          description: Cliente registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistroResponseActual' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      operationId: iniciarSesionActual
+      summary: Iniciar sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequestActual' }
+      responses:
+        '200':
+          description: Credenciales válidas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponseActual' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /auth/logout:
+    post:
+      tags: [Autenticación]
+      operationId: cerrarSesionActual
+      summary: Indicar cierre de sesión al cliente
+      description: No invalida el JWT en el servidor; el cliente debe descartarlo.
+      security: []
+      responses:
+        '204':
+          description: Sesión cerrada en el cliente
+
+  /auth/perfil:
+    get:
+      tags: [Autenticación]
+      operationId: obtenerPerfilActual
+      summary: Obtener el perfil autenticado
+      x-roles: [cliente, usuario, administrador]
+      responses:
+        '200':
+          description: Perfil encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsuarioActual' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /cartelera:
+    get:
+      tags: [Cartelera]
+      operationId: listarCarteleraActual
+      summary: Listar películas activas con funciones disponibles
+      security: []
+      parameters:
+        - name: local_id
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: fecha
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Cartelera listada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarteleraListaActual' }
+        '400': { $ref: '#/components/responses/Error400' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /cartelera/{pelicula_id}:
+    get:
+      tags: [Cartelera]
+      operationId: obtenerPeliculaCarteleraActual
+      summary: Obtener el detalle público de una película
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PeliculaId'
+      responses:
+        '200':
+          description: Película activa con funciones disponibles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculaDetalleActual' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /peliculas/{pelicula_id}:
+    get:
+      tags: [Cartelera]
+      operationId: obtenerPeliculaAliasActual
+      summary: Alias del detalle público de cartelera
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PeliculaId'
+      responses:
+        '200':
+          description: Película activa con funciones disponibles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculaDetalleActual' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /funciones:
+    get:
+      tags: [Funciones]
+      operationId: listarFuncionesActual
+      summary: Listar funciones
+      description: |
+        Sin token devuelve únicamente funciones públicas. Un administrador
+        puede ver todas las funciones y utilizar el filtro `estado`.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, cliente, usuario, administrador]
+      parameters:
+        - name: pelicula_id
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - name: desde
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: hasta
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: estado
+          in: query
+          required: false
+          description: Exclusivo del administrador.
+          schema: { $ref: '#/components/schemas/EstadoFuncion' }
+      responses:
+        '200':
+          description: Funciones listadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FuncionesLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    post:
+      tags: [Funciones]
+      operationId: crearFuncionActual
+      summary: Crear una función
+      x-roles: [administrador]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FuncionCreate' }
+      responses:
+        '201':
+          description: Función creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Funcion' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /funciones/{funcion_id}:
+    get:
+      tags: [Funciones]
+      operationId: obtenerFuncionPublicaActual
+      summary: Obtener una función pública disponible
+      description: Sólo encuentra funciones programadas, futuras y con sala, local y película activos.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FuncionId'
+      responses:
+        '200':
+          description: Función disponible
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Funcion' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    patch:
+      tags: [Funciones]
+      operationId: actualizarFuncionActual
+      summary: Actualizar una función
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/FuncionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FuncionUpdate' }
+      responses:
+        '200':
+          description: Función actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Funcion' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /funciones/{funcion_id}/butacas:
+    get:
+      tags: [Cartelera]
+      operationId: listarButacasFuncionActual
+      summary: Consultar la disponibilidad de butacas
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FuncionId'
+      responses:
+        '200':
+          description: Butacas listadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ButacasFuncionLista' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /salas:
+    get:
+      tags: [Salas]
+      operationId: listarSalasActual
+      summary: Listar salas
+      x-roles: [administrador]
+      parameters:
+        - name: incluir_inactivas
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Salas listadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SalasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    post:
+      tags: [Salas]
+      operationId: crearSalaActual
+      summary: Crear una sala y sus butacas
+      x-roles: [administrador]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SalaCreate' }
+      responses:
+        '201':
+          description: Sala creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sala' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /salas/{sala_id}:
+    patch:
+      tags: [Salas]
+      operationId: actualizarSalaActual
+      summary: Actualizar o desactivar una sala
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/SalaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SalaUpdate' }
+      responses:
+        '200':
+          description: Sala actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sala' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /servicios:
+    get:
+      tags: [Servicios públicos]
+      operationId: listarServiciosSinProteccionActual
+      summary: Listar todos los servicios
+      description: Devuelve una lista JSON directa, incluyendo servicios inactivos.
+      security: []
+      x-implementation-note: El parámetro incluir_inactivos no está implementado.
+      responses:
+        '200':
+          description: Lista directa de servicios
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ServicioCrudoActual' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    post:
+      tags: [Servicios públicos]
+      operationId: crearServicioSinProteccionActual
+      summary: Crear un servicio sin control de acceso
+      security: []
+      x-implementation-note: La implementación no valida JWT, tipos, duplicados ni campos desconocidos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioCreateCrudo' }
+      responses:
+        '201':
+          description: Servicio creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServicioCreadoCrudo' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /servicios/{servicio_id}:
+    get:
+      tags: [Servicios públicos]
+      operationId: obtenerServicioSinProteccionActual
+      summary: Obtener un servicio activo o inactivo
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
+      responses:
+        '200':
+          description: Servicio encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServicioCrudoActual' }
+        '404':
+          description: Servicio no encontrado; respuesta histórica no uniforme
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorSimple' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    patch:
+      tags: [Servicios públicos]
+      operationId: actualizarServicioSinProteccionActual
+      summary: Actualizar un servicio sin control de acceso
+      security: []
+      x-implementation-note: Los nombres de campos se trasladan directamente al UPDATE SQL.
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              additionalProperties: true
+      responses:
+        '200':
+          description: Servicio actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServicioCrudoActual' }
+        '404':
+          description: Servicio no encontrado; respuesta histórica no uniforme
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorSimple' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    delete:
+      tags: [Servicios públicos]
+      operationId: eliminarServicioSinEfectoActual
+      summary: Responder eliminación sin modificar la base
+      description: La ruta responde siempre `204`, aun si el servicio no existe.
+      security: []
+      x-implementation-note: El repositorio actual sólo retorna un texto y no ejecuta DELETE ni baja lógica.
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
+      responses:
+        '204':
+          description: Respuesta sin cuerpo; actualmente no garantiza ningún cambio persistido
+
+  /admin/servicios:
+    get:
+      tags: [Administración de servicios]
+      operationId: listarServiciosAdminActual
+      summary: Listar todos los servicios como administrador
+      x-roles: [administrador]
+      responses:
+        '200':
+          description: Servicios activos e inactivos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiciosAdminLista' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    post:
+      tags: [Administración de servicios]
+      operationId: crearServicioAdminActual
+      summary: Crear un servicio como administrador
+      x-roles: [administrador]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioCreateAdmin' }
+      responses:
+        '201':
+          description: Servicio creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreacionConMensaje' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /admin/servicios/{servicio_id}:
+    patch:
+      tags: [Administración de servicios]
+      operationId: actualizarServicioAdminActual
+      summary: Actualizar un servicio como administrador
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicioUpdateAdmin' }
+      responses:
+        '204':
+          description: Servicio actualizado sin cuerpo de respuesta
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    delete:
+      tags: [Administración de servicios]
+      operationId: desactivarServicioAdminActual
+      summary: Desactivar lógicamente un servicio
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/ServicioId'
+      responses:
+        '204':
+          description: Servicio desactivado
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /admin/peliculas:
+    get:
+      tags: [Administración de películas]
+      operationId: listarPeliculasAdminActual
+      summary: Listar películas desde la ruta histórica de administración
+      description: |
+        La ruta acepta acceso público si no se solicita `incluir_inactivas=true`.
+        Con un token de administrador puede devolver películas inactivas.
+      security:
+        - {}
+        - bearerAuth: []
+      x-roles: [publico, cliente, usuario, administrador]
+      parameters:
+        - name: incluir_inactivas
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+        - name: titulo
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Películas listadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculasAdminLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    post:
+      tags: [Administración de películas]
+      operationId: crearPeliculaAdminActual
+      summary: Crear una película
+      x-roles: [administrador]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PeliculaCreate' }
+      responses:
+        '201':
+          description: Película creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculaAdmin' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /admin/peliculas/externas:
+    get:
+      tags: [Administración de películas]
+      operationId: buscarPeliculasExternasAdminActual
+      summary: Buscar películas en TMDB
+      x-roles: [administrador]
+      parameters:
+        - name: titulo
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Resultados encontrados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculasExternasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '503': { $ref: '#/components/responses/Error503' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /admin/peliculas/{pelicula_id}:
+    patch:
+      tags: [Administración de películas]
+      operationId: actualizarPeliculaAdminActual
+      summary: Actualizar o desactivar una película
+      x-roles: [administrador]
+      parameters:
+        - $ref: '#/components/parameters/PeliculaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PeliculaUpdate' }
+      responses:
+        '200':
+          description: Película actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PeliculaAdmin' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /compras:
+    get:
+      tags: [Compras]
+      operationId: listarComprasActual
+      summary: Listar compras propias o todas como administrador
+      x-roles: [cliente, usuario, administrador]
+      parameters:
+        - name: usuario_id
+          in: query
+          required: false
+          description: Exclusivo del administrador.
+          schema: { type: integer, minimum: 1 }
+        - name: estado
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/EstadoCompra' }
+      responses:
+        '200':
+          description: Compras listadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComprasLista' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    post:
+      tags: [Compras]
+      operationId: crearCompraActual
+      summary: Comprar entradas y servicios
+      x-roles: [cliente, usuario, administrador]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompraCreate' }
+      responses:
+        '201':
+          description: Compra confirmada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compra' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /compras/{compra_id}:
+    get:
+      tags: [Compras]
+      operationId: obtenerCompraActual
+      summary: Obtener una compra
+      x-roles: [cliente, usuario, administrador]
+      parameters:
+        - $ref: '#/components/parameters/CompraId'
+      responses:
+        '200':
+          description: Compra encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compra' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+    patch:
+      tags: [Compras]
+      operationId: cancelarCompraActual
+      summary: Cancelar una compra
+      x-roles: [cliente, usuario, administrador]
+      parameters:
+        - $ref: '#/components/parameters/CompraId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompraCancelacion' }
+      responses:
+        '200':
+          description: Compra cancelada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compra' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        default: { $ref: '#/components/responses/ErrorDefault' }
+
+  /mis-entradas:
+    get:
+      tags: [Entradas]
+      operationId: listarMisEntradasActual
+      summary: Listar las entradas del usuario autenticado
+      x-roles: [cliente, administrador]
+      x-implementation-note: |
+        La consulta actual referencia columnas inexistentes (`entradas.funcion_id`
+        y `entradas.butaca_id`) y con el esquema SQL incluido responde 500.
+      responses:
+        '200':
+          description: Forma que intenta devolver la implementación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntradasHistoricasLista' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '500': { $ref: '#/components/responses/Error500' }
+
+  /entradas/{entrada_id}:
+    get:
+      tags: [Entradas]
+      operationId: obtenerEntradaHistoricaActual
+      summary: Obtener una entrada propia
+      description: Incluso un administrador queda limitado a las entradas asociadas a su usuario.
+      x-roles: [cliente, administrador]
+      x-implementation-note: La consulta referencia columnas inexistentes y actualmente responde 500 con el esquema incluido.
+      parameters:
+        - $ref: '#/components/parameters/EntradaId'
+      responses:
+        '200':
+          description: Forma que intenta devolver la implementación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntradaHistorica' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '500': { $ref: '#/components/responses/Error500' }
+
+  /admin/entradas/validar:
+    post:
+      tags: [Entradas]
+      operationId: validarEntradaAdminActual
+      summary: Validar una entrada mediante QR
+      x-roles: [administrador]
+      x-implementation-note: |
+        La búsqueda referencia columnas inexistentes. Además las entradas se
+        crean como `vigente`, pero el UPDATE sólo acepta el estado `emitida`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ValidarEntradaRequest' }
+      responses:
+        '200':
+          description: Forma que intenta devolver la implementación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidarEntradaResponseActual' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '404': { $ref: '#/components/responses/Error404' }
+        '409': { $ref: '#/components/responses/Error409' }
+        '500': { $ref: '#/components/responses/Error500' }
+
+  /admin/estadisticas:
+    get:
+      tags: [Estadísticas]
+      operationId: obtenerEstadisticasAdminActual
+      summary: Consultar estadísticas
+      x-roles: [administrador]
+      x-implementation-note: Una redefinición del repositorio provoca actualmente TypeError y respuesta 500.
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+      responses:
+        '200':
+          description: Forma prevista por el servicio antes del error actual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Estadisticas' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '500': { $ref: '#/components/responses/Error500' }
+
+  /admin/admin/estadisticas:
+    get:
+      tags: [Estadísticas]
+      operationId: obtenerEstadisticasAliasDuplicadoActual
+      summary: Alias duplicado de estadísticas
+      description: Ruta resultante de combinar el prefijo `/admin` con `/admin/estadisticas`.
+      x-roles: [administrador]
+      x-implementation-note: Una redefinición del repositorio provoca actualmente TypeError y respuesta 500.
+      parameters:
+        - $ref: '#/components/parameters/Desde'
+        - $ref: '#/components/parameters/Hasta'
+      responses:
+        '200':
+          description: Forma prevista por el servicio antes del error actual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Estadisticas' }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '403': { $ref: '#/components/responses/Error403' }
+        '500': { $ref: '#/components/responses/Error500' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PeliculaId:
+      name: pelicula_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    FuncionId:
+      name: funcion_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    SalaId:
+      name: sala_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    ServicioId:
+      name: servicio_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    CompraId:
+      name: compra_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    EntradaId:
+      name: entrada_id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    Desde:
+      name: desde
+      in: query
+      required: false
+      description: Debe enviarse junto con `hasta` e incluir zona horaria.
+      schema: { type: string, format: date-time }
+    Hasta:
+      name: hasta
+      in: query
+      required: false
+      description: Debe enviarse junto con `desde` e incluir zona horaria.
+      schema: { type: string, format: date-time }
+
+  responses:
+    Error400:
+      description: Datos o filtros inválidos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error401:
+      description: Autenticación ausente, inválida o vencida
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error403:
+      description: Rol sin permisos suficientes
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error404:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error409:
+      description: Conflicto de integridad, estado o disponibilidad
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error500:
+      description: Error interno capturado por el manejador global
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error503:
+      description: Integración externa no configurada
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ErrorDefault:
+      description: Error HTTP devuelto por la implementación
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    ErrorDetalle:
+      type: object
+      required: [campo, mensaje]
+      properties:
+        campo: { type: string, example: general }
+        mensaje: { type: string }
+
+    Error:
+      type: object
+      required: [codigo, mensaje, detalles]
+      properties:
+        codigo: { type: string, example: DATOS_INVALIDOS }
+        mensaje: { type: string, example: Los datos enviados son inválidos }
+        detalles:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ErrorDetalle' }
+
+    ErrorSimple:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, example: Servicio no encontrado }
+
+    RolActual:
+      type: string
+      description: El registro genera `cliente`; `usuario` todavía es aceptado en compras.
+      enum: [cliente, usuario, administrador]
+
+    UsuarioActual:
+      type: object
+      required: [id, nombre, email, rol]
+      properties:
+        id: { type: integer, minimum: 1 }
+        nombre: { type: string }
+        email: { type: string, format: email }
+        rol: { $ref: '#/components/schemas/RolActual' }
+
+    RegistroRequestActual:
+      type: object
+      required: [nombre, email, password]
+      additionalProperties: true
+      properties:
+        nombre: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 6, writeOnly: true }
+
+    RegistroResponseActual:
+      type: object
+      required: [id, mensaje]
+      properties:
+        id: { type: integer, minimum: 1 }
+        mensaje: { type: string, example: Usuario registrado exitosamente }
+
+    LoginRequestActual:
+      type: object
+      required: [email, password]
+      additionalProperties: true
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 1, writeOnly: true }
+
+    LoginResponseActual:
+      type: object
+      required: [token, usuario]
+      properties:
+        token: { type: string, readOnly: true }
+        usuario: { $ref: '#/components/schemas/UsuarioActual' }
+
+    PeliculaCarteleraActual:
+      type: object
+      required: [id, titulo, sinopsis, poster_url, duracion_minutos, clasificacion, generos]
+      properties:
+        id: { type: integer, minimum: 1 }
+        titulo: { type: string }
+        sinopsis: { type: string }
+        poster_url: { type: string, format: uri }
+        duracion_minutos: { type: integer, minimum: 1 }
+        clasificacion: { type: string }
+        generos:
+          type: array
+          items: { type: string }
+
+    FuncionDisponibleActual:
+      type: object
+      required: [id, fecha_hora, precio, sala_id, sala_nombre, local_id, local_nombre]
+      properties:
+        id: { type: integer, minimum: 1 }
+        fecha_hora: { type: string, format: date-time }
+        precio: { type: number, minimum: 0 }
+        sala_id: { type: integer, minimum: 1 }
+        sala_nombre: { type: string }
+        local_id: { type: integer, minimum: 1 }
+        local_nombre: { type: string }
+
+    PeliculaDetalleActual:
+      allOf:
+        - $ref: '#/components/schemas/PeliculaCarteleraActual'
+        - type: object
+          required: [funciones_disponibles]
+          properties:
+            funciones_disponibles:
+              type: array
+              items: { $ref: '#/components/schemas/FuncionDisponibleActual' }
+
+    CarteleraListaActual:
+      type: object
+      required: [peliculas]
+      properties:
+        peliculas:
+          type: array
+          items: { $ref: '#/components/schemas/PeliculaCarteleraActual' }
+
+    PeliculaAdmin:
+      type: object
+      required: [id, titulo, sinopsis, poster_url, duracion_minutos, clasificacion, genero, activa]
+      properties:
+        id: { type: integer, minimum: 1 }
+        id_externo: { type: integer, nullable: true }
+        titulo: { type: string }
+        sinopsis: { type: string }
+        poster_url: { type: string, format: uri }
+        duracion_minutos: { type: integer, minimum: 1 }
+        clasificacion: { type: string }
+        genero: { type: string }
+        activa: { type: boolean }
+
+    PeliculaCreate:
+      type: object
+      additionalProperties: false
+      required: [titulo, sinopsis, poster_url, duracion_minutos, clasificacion, genero]
+      properties:
+        id_externo: { type: integer }
+        titulo: { type: string, minLength: 1 }
+        sinopsis: { type: string, minLength: 1 }
+        poster_url: { type: string, format: uri }
+        duracion_minutos: { type: integer, minimum: 1 }
+        clasificacion: { type: string, minLength: 1 }
+        genero: { type: string, minLength: 1 }
+
+    PeliculaUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        titulo: { type: string, minLength: 1 }
+        sinopsis: { type: string, minLength: 1 }
+        poster_url: { type: string, format: uri }
+        duracion_minutos: { type: integer, minimum: 1 }
+        clasificacion: { type: string, minLength: 1 }
+        genero: { type: string, minLength: 1 }
+        activa: { type: boolean }
+
+    PeliculasAdminLista:
+      type: object
+      required: [peliculas]
+      properties:
+        peliculas:
+          type: array
+          items: { $ref: '#/components/schemas/PeliculaAdmin' }
+
+    PeliculaExterna:
+      type: object
+      required: [id_externo, titulo, sinopsis, poster_url]
+      properties:
+        id_externo: { type: integer }
+        titulo: { type: string }
+        sinopsis: { type: string, nullable: true }
+        poster_url: { type: string, format: uri, nullable: true }
+
+    PeliculasExternasLista:
+      type: object
+      required: [peliculas]
+      properties:
+        peliculas:
+          type: array
+          items: { $ref: '#/components/schemas/PeliculaExterna' }
+
+    EstadoFuncion:
+      type: string
+      enum: [programada, cancelada]
+
+    Funcion:
+      type: object
+      required: [id, pelicula_id, sala_id, fecha_hora, precio, estado]
+      properties:
+        id: { type: integer, minimum: 1 }
+        pelicula_id: { type: integer, minimum: 1 }
+        sala_id: { type: integer, minimum: 1 }
+        fecha_hora: { type: string, format: date-time }
+        precio: { type: integer, minimum: 0 }
+        estado: { $ref: '#/components/schemas/EstadoFuncion' }
+
+    FuncionCreate:
+      type: object
+      additionalProperties: false
+      required: [pelicula_id, sala_id, fecha_hora, precio]
+      properties:
+        pelicula_id: { type: integer, minimum: 1 }
+        sala_id: { type: integer, minimum: 1 }
+        fecha_hora: { type: string, format: date-time }
+        precio: { type: integer, minimum: 0 }
+        estado:
+          allOf:
+            - $ref: '#/components/schemas/EstadoFuncion'
+          default: programada
+
+    FuncionUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        pelicula_id: { type: integer, minimum: 1 }
+        sala_id: { type: integer, minimum: 1 }
+        fecha_hora: { type: string, format: date-time }
+        precio: { type: integer, minimum: 0 }
+        estado: { $ref: '#/components/schemas/EstadoFuncion' }
+
+    FuncionesLista:
+      type: object
+      required: [funciones]
+      properties:
+        funciones:
+          type: array
+          items: { $ref: '#/components/schemas/Funcion' }
+
+    EstadoButaca:
+      type: string
+      enum: [disponible, ocupada]
+
+    ButacaFuncion:
+      type: object
+      required: [id, fila, numero, estado]
+      properties:
+        id: { type: integer, minimum: 1 }
+        fila: { type: string }
+        numero: { type: integer, minimum: 1 }
+        estado: { $ref: '#/components/schemas/EstadoButaca' }
+
+    ButacasFuncionLista:
+      type: object
+      required: [funcion_id, butacas]
+      properties:
+        funcion_id: { type: integer, minimum: 1 }
+        butacas:
+          type: array
+          items: { $ref: '#/components/schemas/ButacaFuncion' }
+
+    Sala:
+      type: object
+      required: [id, local_id, nombre, filas, butacas_por_fila, capacidad, activa]
+      properties:
+        id: { type: integer, minimum: 1 }
+        local_id: { type: integer, minimum: 1 }
+        nombre: { type: string }
+        filas: { type: integer, minimum: 1 }
+        butacas_por_fila: { type: integer, minimum: 1 }
+        capacidad: { type: integer, minimum: 1 }
+        activa: { type: boolean }
+
+    SalaCreate:
+      type: object
+      additionalProperties: false
+      required: [local_id, nombre, filas, butacas_por_fila]
+      properties:
+        local_id: { type: integer, minimum: 1 }
+        nombre: { type: string, minLength: 1 }
+        filas: { type: integer, minimum: 1, maximum: 18278 }
+        butacas_por_fila: { type: integer, minimum: 1 }
+
+    SalaUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1 }
+        filas: { type: integer, minimum: 1, maximum: 18278 }
+        butacas_por_fila: { type: integer, minimum: 1 }
+        activa: { type: boolean }
+
+    SalasLista:
+      type: object
+      required: [salas]
+      properties:
+        salas:
+          type: array
+          items: { $ref: '#/components/schemas/Sala' }
+
+    ImporteCrudo:
+      description: MySQL puede entregar DECIMAL como texto; las altas crudas reutilizan el entero recibido.
+      oneOf:
+        - type: integer
+          minimum: 0
+        - type: string
+          pattern: '^\d+(?:\.\d+)?$'
+
+    ActivoCrudo:
+      description: Según el origen, el booleano puede serializarse como boolean o TINYINT.
+      oneOf:
+        - type: boolean
+        - type: integer
+          enum: [0, 1]
+
+    ServicioCrudoActual:
+      type: object
+      required: [id, nombre, descripcion, precio, activo]
+      properties:
+        id: { type: integer, minimum: 1 }
+        nombre: { type: string }
+        descripcion: { type: string, nullable: true }
+        precio: { $ref: '#/components/schemas/ImporteCrudo' }
+        activo: { $ref: '#/components/schemas/ActivoCrudo' }
+
+    ServicioCreadoCrudo:
+      type: object
+      required: [id, nombre, descripcion, precio, activo]
+      properties:
+        id: { type: integer, minimum: 1 }
+        nombre: { type: string }
+        descripcion: { type: string }
+        precio: { type: integer, minimum: 0 }
+        activo: { type: boolean, enum: [true] }
+
+    ServicioCreateCrudo:
+      type: object
+      required: [nombre, descripcion, precio]
+      additionalProperties: true
+      properties:
+        nombre: {}
+        descripcion: {}
+        precio: {}
+
+    ServicioAdmin:
+      type: object
+      required: [id, nombre, descripcion, precio, activo]
+      properties:
+        id: { type: integer, minimum: 1 }
+        nombre: { type: string }
+        descripcion: { type: string, nullable: true }
+        precio: { $ref: '#/components/schemas/ImporteCrudo' }
+        activo: { type: boolean }
+
+    ServiciosAdminLista:
+      type: object
+      required: [servicios]
+      properties:
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/ServicioAdmin' }
+
+    ServicioCreateAdmin:
+      type: object
+      required: [nombre, precio]
+      additionalProperties: true
+      properties:
+        nombre: { type: string, minLength: 1 }
+        descripcion: { type: string }
+        precio: { type: integer, minimum: 0 }
+
+    ServicioUpdateAdmin:
+      type: object
+      minProperties: 1
+      additionalProperties: true
+      properties:
+        nombre: { type: string, minLength: 1 }
+        descripcion: { type: string }
+        precio: { type: integer, minimum: 0 }
+
+    CreacionConMensaje:
+      type: object
+      required: [id, mensaje]
+      properties:
+        id: { type: integer, minimum: 1 }
+        mensaje: { type: string, example: Servicio creado exitosamente }
+
+    MedioPago:
+      type: string
+      enum: [tarjeta, efectivo, transferencia]
+
+    EstadoCompra:
+      type: string
+      enum: [confirmada, cancelada]
+
+    ServicioSeleccionado:
+      type: object
+      additionalProperties: false
+      required: [servicio_id, cantidad]
+      properties:
+        servicio_id: { type: integer, minimum: 1 }
+        cantidad: { type: integer, minimum: 1 }
+
+    CompraCreate:
+      type: object
+      additionalProperties: false
+      required: [funcion_id, butaca_ids, medio_pago]
+      properties:
+        funcion_id: { type: integer, minimum: 1 }
+        butaca_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 1 }
+        servicios:
+          type: array
+          default: []
+          items: { $ref: '#/components/schemas/ServicioSeleccionado' }
+        medio_pago: { $ref: '#/components/schemas/MedioPago' }
+
+    CompraCancelacion:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado:
+          type: string
+          enum: [cancelada]
+        motivo:
+          type: string
+          maxLength: 500
+          nullable: true
+
+    CompraServicio:
+      type: object
+      required: [servicio_id, nombre, cantidad, precio_unitario, subtotal]
+      properties:
+        servicio_id: { type: integer, minimum: 1 }
+        nombre: { type: string }
+        cantidad: { type: integer, minimum: 1 }
+        precio_unitario: { type: integer, minimum: 0 }
+        subtotal: { type: integer, minimum: 0 }
+
+    EstadoEntradaCompra:
+      type: string
+      enum: [vigente, utilizada, cancelada]
+
+    EntradaCompra:
+      type: object
+      required: [id, compra_id, usuario_id, funcion_id, butaca, codigo_qr, estado, utilizada_en]
+      properties:
+        id: { type: integer, minimum: 1 }
+        compra_id: { type: integer, minimum: 1 }
+        usuario_id: { type: integer, minimum: 1 }
+        funcion_id: { type: integer, minimum: 1 }
+        butaca: { $ref: '#/components/schemas/ButacaFuncion' }
+        codigo_qr: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoEntradaCompra' }
+        utilizada_en: { type: string, format: date-time, nullable: true }
+
+    Compra:
+      type: object
+      required:
+        - id
+        - usuario_id
+        - funcion_id
+        - estado
+        - medio_pago
+        - fecha_hora
+        - total_entradas
+        - total_servicios
+        - total
+        - servicios
+        - entradas
+      properties:
+        id: { type: integer, minimum: 1 }
+        usuario_id: { type: integer, minimum: 1 }
+        funcion_id: { type: integer, minimum: 1 }
+        estado: { $ref: '#/components/schemas/EstadoCompra' }
+        medio_pago: { $ref: '#/components/schemas/MedioPago' }
+        fecha_hora: { type: string, format: date-time }
+        total_entradas: { type: integer, minimum: 0 }
+        total_servicios: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        servicios:
+          type: array
+          items: { $ref: '#/components/schemas/CompraServicio' }
+        entradas:
+          type: array
+          items: { $ref: '#/components/schemas/EntradaCompra' }
+
+    ComprasLista:
+      type: object
+      required: [compras]
+      properties:
+        compras:
+          type: array
+          items: { $ref: '#/components/schemas/Compra' }
+
+    EstadoEntradaHistorica:
+      type: string
+      enum: [emitida, vigente, utilizada, cancelada]
+
+    EntradaHistorica:
+      type: object
+      description: Forma intentada por las consultas históricas actualmente incompatibles con el esquema SQL.
+      required: [id, compra_id, funcion_id, butaca_id, precio, codigo_qr, estado]
+      properties:
+        id: { type: integer, minimum: 1 }
+        compra_id: { type: integer, minimum: 1 }
+        funcion_id: { type: integer, minimum: 1 }
+        butaca_id: { type: integer, minimum: 1 }
+        precio: { $ref: '#/components/schemas/ImporteCrudo' }
+        codigo_qr: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoEntradaHistorica' }
+
+    EntradasHistoricasLista:
+      type: object
+      required: [entradas]
+      properties:
+        entradas:
+          type: array
+          items: { $ref: '#/components/schemas/EntradaHistorica' }
+
+    ValidarEntradaRequest:
+      type: object
+      required: [codigo_qr, funcion_id]
+      additionalProperties: true
+      properties:
+        codigo_qr: { type: string, minLength: 1 }
+        funcion_id: { type: integer, minimum: 1 }
+
+    ValidarEntradaResponseActual:
+      type: object
+      required: [entrada_id, funcion_id, estado, mensaje]
+      properties:
+        entrada_id: { type: integer, minimum: 1 }
+        funcion_id: { type: integer, minimum: 1 }
+        estado: { type: string, enum: [utilizada] }
+        mensaje: { type: string, example: Ingreso permitido }
+
+    OcupacionFuncion:
+      type: object
+      required: [funcion_id, butacas_vendidas, capacidad, porcentaje]
+      properties:
+        funcion_id: { type: integer, minimum: 1 }
+        butacas_vendidas: { type: integer, minimum: 0 }
+        capacidad: { type: integer, minimum: 0 }
+        porcentaje: { type: number, minimum: 0 }
+
+    OcupacionPelicula:
+      type: object
+      required: [pelicula_id, butacas_vendidas, capacidad_total_funciones, porcentaje]
+      properties:
+        pelicula_id: { type: integer, minimum: 1 }
+        butacas_vendidas: { type: integer, minimum: 0 }
+        capacidad_total_funciones: { type: integer, minimum: 0 }
+        porcentaje: { type: number, minimum: 0 }
+
+    VentasGenero:
+      type: object
+      required: [genero, total_ventas]
+      properties:
+        genero: { type: string }
+        total_ventas: { type: integer, minimum: 0 }
+
+    VentasFranja:
+      type: object
+      required: [franja, entradas_vendidas]
+      properties:
+        franja: { type: string, example: '18:00-21:00' }
+        entradas_vendidas: { type: integer, minimum: 0 }
+
+    Estadisticas:
+      type: object
+      required: [ocupacion_por_funcion, ocupacion_por_pelicula, ventas_por_genero, franjas_horarias, cancelaciones]
+      properties:
+        ocupacion_por_funcion:
+          type: array
+          items: { $ref: '#/components/schemas/OcupacionFuncion' }
+        ocupacion_por_pelicula:
+          type: array
+          items: { $ref: '#/components/schemas/OcupacionPelicula' }
+        ventas_por_genero:
+          type: array
+          items: { $ref: '#/components/schemas/VentasGenero' }
+        franjas_horarias:
+          type: array
+          items: { $ref: '#/components/schemas/VentasFranja' }
+        cancelaciones: { type: integer, minimum: 0 }

@@ -116,6 +116,39 @@ También se pueden ejecutar en un contenedor temporal sin iniciar la API:
 docker compose run --rm --no-deps api pytest
 ```
 
+Las pruebas de `tests/test_reservas_mysql.py` usan el MySQL/InnoDB real del
+Compose: no deben ejecutarse con SQLite ni reemplazando la conexión por mocks.
+
+## Reservas temporales y pagos
+
+El flujo seguro es:
+
+1. `POST /funciones/{funcion_id}/reservas` retiene todas las butacas durante
+   cinco minutos, o ninguna si existe un conflicto.
+2. `GET /reservas/{id}` consulta el estado sin renovar el vencimiento y
+   `DELETE /reservas/{id}` cancela una retención propia. Además,
+   `GET /reservas/activa` permite recuperar una compra en curso al volver a la
+   cartelera.
+3. `POST /reservas/{id}/pagos`, con `Idempotency-Key`, crea un pago pendiente
+   durante cinco minutos más. Todavía no emite entradas.
+4. En la demo, `POST /reservas/{id}/pagos/simular` aprueba o cancela el pago
+   ficticio. Aprobar vende las butacas y emite entradas; cancelar libera las
+   butacas de forma inmediata.
+
+`POST /compras` permanece únicamente para informar a clientes anteriores que
+la compra directa está deshabilitada. Devuelve `409` y nunca confirma pagos.
+
+La migración [sql/04_reservas_temporales.sql](sql/04_reservas_temporales.sql)
+se ejecuta automáticamente al crear un volumen nuevo. Para una base existente,
+aplicarla una sola vez desde el directorio del backend:
+
+```bash
+docker compose exec -T db sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" cine_paradiso' < sql/04_reservas_temporales.sql
+```
+
+La expiración es lógica y se compara con `UTC_TIMESTAMP()` en cada operación;
+no requiere un cron ni una tarea que libere butacas cada segundo.
+
 ### Detener los servicios
 
 Detener y eliminar los contenedores conservando la base de datos:

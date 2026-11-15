@@ -32,6 +32,11 @@ ERRORES_HTTP = {
         "Conflicto con el recurso",
         "La operación entra en conflicto con el estado actual del recurso.",
     ),
+    410: (
+        "RECURSO_VENCIDO",
+        "El recurso ya no está disponible",
+        "El recurso solicitado venció.",
+    ),
     415: (
         "TIPO_CONTENIDO_NO_SOPORTADO",
         "Tipo de contenido no soportado",

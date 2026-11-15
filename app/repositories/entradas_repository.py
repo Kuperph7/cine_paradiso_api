@@ -104,7 +104,7 @@ def crear_entrada(
             codigo_qr,
             estado
         )
-        VALUES (%s, %s, %s, %s, 'vigente')
+        VALUES (%s, %s, %s, %s, 'emitida')
     """
     cursor = conexion.cursor()
     try:

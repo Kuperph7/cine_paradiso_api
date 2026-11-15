@@ -9,12 +9,19 @@ from app.validators.common import (
 
 
 MEDIOS_PAGO = {"tarjeta", "efectivo", "transferencia"}
-ESTADOS_COMPRA = {"confirmada", "cancelada"}
+ESTADOS_COMPRA = {
+    "pendiente_pago",
+    "confirmada",
+    "cancelada",
+    "fallida",
+}
 CAMPOS_COMPRA = {"funcion_id", "butaca_ids", "servicios", "medio_pago"}
 CAMPOS_COMPRA_REQUERIDOS = {"funcion_id", "butaca_ids", "medio_pago"}
 CAMPOS_CANCELACION = {"estado", "motivo"}
-SEAT_STATES = frozenset({"disponible", "reservada", "ocupada"})
-PURCHASE_STATES = frozenset({"confirmada", "cancelada"})
+SEAT_STATES = frozenset(
+    {"disponible", "retenida", "pago_en_proceso", "vendida"}
+)
+PURCHASE_STATES = frozenset(ESTADOS_COMPRA)
 TICKET_STATES = frozenset({"emitida", "utilizada", "cancelada"})
 
 DEFAULT_SEAT_STATE = "disponible"
@@ -50,45 +57,32 @@ def _validar_objeto(datos, campos_admitidos, requeridos):
         return _error("CAMPOS_REQUERIDOS", f"Faltan campos requeridos: {campos}.")
 
 
-def validar_creacion_compra(datos):
-    error = _validar_objeto(datos, CAMPOS_COMPRA, CAMPOS_COMPRA_REQUERIDOS)
-    if es_respuesta_error(error):
-        return error
-    resultado = dict(datos)
-    funcion_id = _entero_positivo(
-        resultado["funcion_id"], "funcion_id"
-    )
-    if es_respuesta_error(funcion_id):
-        return funcion_id
-    resultado["funcion_id"] = funcion_id
-
-    butaca_ids = resultado["butaca_ids"]
+def _validar_butaca_ids(butaca_ids):
     if not isinstance(butaca_ids, list) or not butaca_ids:
-        return _error("BUTACAS_INVALIDAS", "butaca_ids debe contener al menos una butaca.")
-    butacas_validadas = []
-    for butaca_id in butaca_ids:
-        butaca_validada = _entero_positivo(butaca_id, "butaca_ids")
-        if es_respuesta_error(butaca_validada):
-            return butaca_validada
-        butacas_validadas.append(butaca_validada)
-    butaca_ids = butacas_validadas
-    if len(butaca_ids) != len(set(butaca_ids)):
-        return _error("BUTACAS_REPETIDAS", "butaca_ids no admite identificadores repetidos.")
-    resultado["butaca_ids"] = butaca_ids
-
-    medio_pago = resultado["medio_pago"]
-    if not isinstance(medio_pago, str) or medio_pago not in MEDIOS_PAGO:
         return _error(
-            "MEDIO_PAGO_INVALIDO",
-            "medio_pago debe ser tarjeta, efectivo o transferencia.",
+            "BUTACAS_INVALIDAS",
+            "butaca_ids debe contener al menos una butaca.",
         )
+    validadas = []
+    for butaca_id in butaca_ids:
+        validada = _entero_positivo(butaca_id, "butaca_ids")
+        if es_respuesta_error(validada):
+            return validada
+        validadas.append(validada)
+    if len(validadas) != len(set(validadas)):
+        return _error(
+            "BUTACAS_REPETIDAS",
+            "butaca_ids no admite identificadores repetidos.",
+        )
+    return validadas
 
-    servicios = resultado.get("servicios", [])
+
+def _validar_servicios(servicios):
     if not isinstance(servicios, list):
         return _error("SERVICIOS_INVALIDOS", "servicios debe ser una lista.")
 
-    servicios_validados = []
-    ids_servicios = []
+    validados = []
+    ids = []
     for indice, servicio in enumerate(servicios):
         error = _validar_objeto(
             servicio,
@@ -109,17 +103,102 @@ def validar_creacion_compra(datos):
         )
         if es_respuesta_error(cantidad):
             return cantidad
-        ids_servicios.append(servicio_id)
-        servicios_validados.append(
-            {"servicio_id": servicio_id, "cantidad": cantidad}
-        )
+        ids.append(servicio_id)
+        validados.append({"servicio_id": servicio_id, "cantidad": cantidad})
 
-    if len(ids_servicios) != len(set(ids_servicios)):
+    if len(ids) != len(set(ids)):
         return _error(
             "SERVICIOS_REPETIDOS",
             "No se puede seleccionar el mismo servicio más de una vez.",
         )
-    resultado["servicios"] = servicios_validados
+    return validados
+
+
+def validar_creacion_reserva(datos):
+    error = _validar_objeto(datos, {"butaca_ids"}, {"butaca_ids"})
+    if es_respuesta_error(error):
+        return error
+    butaca_ids = _validar_butaca_ids(datos["butaca_ids"])
+    if es_respuesta_error(butaca_ids):
+        return butaca_ids
+    return {"butaca_ids": butaca_ids}
+
+
+def validar_inicio_pago(datos):
+    error = _validar_objeto(
+        datos,
+        {"servicios", "medio_pago"},
+        {"medio_pago"},
+    )
+    if es_respuesta_error(error):
+        return error
+    medio_pago = datos["medio_pago"]
+    if not isinstance(medio_pago, str) or medio_pago not in MEDIOS_PAGO:
+        return _error(
+            "MEDIO_PAGO_INVALIDO",
+            "medio_pago debe ser tarjeta, efectivo o transferencia.",
+        )
+    servicios = _validar_servicios(datos.get("servicios", []))
+    if es_respuesta_error(servicios):
+        return servicios
+    return {"medio_pago": medio_pago, "servicios": servicios}
+
+
+def validar_pago_simulado(datos):
+    error = _validar_objeto(datos, {"resultado"}, {"resultado"})
+    if es_respuesta_error(error):
+        return error
+    if datos["resultado"] not in {"aprobado", "cancelado"}:
+        return _error(
+            "RESULTADO_PAGO_INVALIDO",
+            "resultado debe ser 'aprobado' o 'cancelado'.",
+        )
+    return {"resultado": datos["resultado"]}
+
+
+def validar_clave_idempotencia(valor):
+    if not isinstance(valor, str) or not valor.strip():
+        return _error(
+            "IDEMPOTENCIA_REQUERIDA",
+            "Envíe el encabezado Idempotency-Key para iniciar el pago.",
+        )
+    valor = valor.strip()
+    if len(valor) > 128:
+        return _error(
+            "IDEMPOTENCIA_INVALIDA",
+            "Idempotency-Key no puede superar 128 caracteres.",
+        )
+    return valor
+
+
+def validar_creacion_compra(datos):
+    error = _validar_objeto(datos, CAMPOS_COMPRA, CAMPOS_COMPRA_REQUERIDOS)
+    if es_respuesta_error(error):
+        return error
+    resultado = dict(datos)
+    funcion_id = _entero_positivo(
+        resultado["funcion_id"], "funcion_id"
+    )
+    if es_respuesta_error(funcion_id):
+        return funcion_id
+    resultado["funcion_id"] = funcion_id
+
+    butaca_ids = _validar_butaca_ids(resultado["butaca_ids"])
+    if es_respuesta_error(butaca_ids):
+        return butaca_ids
+    resultado["butaca_ids"] = butaca_ids
+
+    medio_pago = resultado["medio_pago"]
+    if not isinstance(medio_pago, str) or medio_pago not in MEDIOS_PAGO:
+        return _error(
+            "MEDIO_PAGO_INVALIDO",
+            "medio_pago debe ser tarjeta, efectivo o transferencia.",
+        )
+
+    servicios = _validar_servicios(resultado.get("servicios", []))
+    if es_respuesta_error(servicios):
+        return servicios
+    resultado["servicios"] = servicios
     return resultado
 
 
@@ -157,7 +236,7 @@ def validar_filtros_compras(args):
     if estado is not None and estado not in ESTADOS_COMPRA:
         return _error(
             "FILTRO_INVALIDO",
-            "estado debe ser 'confirmada' o 'cancelada'.",
+            "estado no corresponde a un estado de compra válido.",
         )
 
     return {"usuario_id": usuario_id, "estado": estado}

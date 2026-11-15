@@ -4,14 +4,12 @@ from app.errors import es_respuesta_error, respuesta_error
 from app.security import es_administrador, requerir_acceso_compras
 from app.services.compras_service import (
     cancelar_compra as cancelar_compra_service,
-    crear_compra as crear_compra_service,
     listar_compras as listar_compras_service,
     obtener_compra as obtener_compra_service,
 )
 from app.validators.compras_validators import (
     validar_cancelacion_compra,
     validar_compra_id,
-    validar_creacion_compra,
     validar_filtros_compras,
 )
 
@@ -52,13 +50,12 @@ def crear_compra():
     identidad = requerir_acceso_compras()
     if es_respuesta_error(identidad):
         return identidad
-    datos = validar_creacion_compra(request.get_json(silent=True))
-    if es_respuesta_error(datos):
-        return datos
-    resultado = crear_compra_service(identidad["usuario_id"], datos)
-    if es_respuesta_error(resultado):
-        return resultado
-    return jsonify(resultado), 201
+    return respuesta_error(
+        409,
+        "PAGO_CONFIRMADO_REQUERIDO",
+        "La compra directa ya no está habilitada",
+        "Cree una reserva, inicie el pago y resuélvalo mediante el flujo habilitado.",
+    )
 
 
 @compras_bp.route("/compras/<int:compra_id>", methods=["GET"])

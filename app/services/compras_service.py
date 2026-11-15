@@ -61,7 +61,7 @@ def _serializar_servicio(servicio):
 def _serializar_entrada(entrada):
     estado_butaca = entrada["estado_butaca"]
     if estado_butaca != "disponible":
-        estado_butaca = "ocupada"
+        estado_butaca = "vendida"
 
     return {
         "id": int(entrada["id"]),
@@ -221,101 +221,34 @@ def _conflicto_compra():
     )
 
 
-def crear_compra(usuario_id, datos):
-    conexion = get_db_connection()
-    try:
-        conexion.start_transaction()
-        funcion = buscar_funcion_para_compra(conexion, datos["funcion_id"])
-        error = _validar_funcion(funcion)
-        if es_respuesta_error(error):
-            conexion.rollback()
-            return error
-        error = _validar_y_bloquear_butacas(
-            conexion,
-            funcion,
-            datos["butaca_ids"],
-        )
-        if es_respuesta_error(error):
-            conexion.rollback()
-            return error
-        servicios_preparados = _preparar_servicios(
-            conexion,
-            datos["servicios"],
-        )
-        if es_respuesta_error(servicios_preparados):
-            conexion.rollback()
-            return servicios_preparados
-        servicios, total_servicios = servicios_preparados
 
-        precio_entrada = int(funcion["precio"])
-        total_entradas = precio_entrada * len(datos["butaca_ids"])
-        total = total_entradas + total_servicios
-        compra_id = insertar_compra(
-            conexion,
-            usuario_id,
-            funcion["id"],
-            datos["medio_pago"],
-            total_entradas,
-            total_servicios,
-            total,
-        )
-        agregar_servicios_compra(conexion, compra_id, servicios)
+def enviar_correo_compra_confirmada(usuario_id, resultado):
+    """Envía las entradas por correo después de confirmar una compra."""
+    if os.getenv("SMTP_HOST") and os.getenv("SMTP_FROM"):
+        try:
+            usuario = obtener_usuario_por_id(usuario_id)
 
-        ocupar_butacas(conexion, funcion["id"], datos["butaca_ids"])
-        butacas_funcion = buscar_butacas_funcion(
-            conexion,
-            funcion["id"],
-            datos["butaca_ids"],
-        )
-        ids_por_butaca = {
-            int(butaca["butaca_id"]): int(butaca["id"])
-            for butaca in butacas_funcion
-        }
-        if set(ids_por_butaca) != set(datos["butaca_ids"]):
-            conexion.rollback()
-            return _conflicto_compra()
+            if usuario and usuario.get("email"):
+                enviar_entradas_por_email(
+                    usuario["email"],
+                    resultado,
+                )
 
-        for butaca_id in datos["butaca_ids"]:
-            crear_entrada(
-                conexion,
-                compra_id,
-                ids_por_butaca[butaca_id],
-                precio_entrada,
-                generar_token_qr(),
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "No se pudo enviar el correo de la compra %s",
+                resultado["id"],
             )
 
 
-        compra = buscar_compra_por_id(conexion, compra_id)
-        resultado = _completar_compra(conexion, compra)
-        conexion.commit()
-
-        # La compra ya está guardada antes de intentar enviar el correo.
-        if os.getenv("SMTP_HOST") and os.getenv("SMTP_FROM"):
-            try:
-                usuario = obtener_usuario_por_id(usuario_id)
-
-                if usuario and usuario.get("email"):
-                    enviar_entradas_por_email(
-                        usuario["email"],
-                        resultado,
-                    )
-
-            except Exception:
-                logging.getLogger(__name__).exception(
-                    "No se pudo enviar el correo de la compra %s",
-                    compra_id,
-                )
-
-        return resultado
-
-    except IntegrityError:
-        conexion.rollback()
-        return _conflicto_compra()
-    except Exception:
-        conexion.rollback()
-        raise
-    finally:
-        conexion.close()
+def crear_compra(usuario_id, datos):
+    """Compatibilidad defensiva: una compra ya no se confirma desde el cliente."""
+    return respuesta_error(
+        409,
+        "PAGO_CONFIRMADO_REQUERIDO",
+        "La compra directa ya no está habilitada",
+        "Cree una reserva, inicie el pago y resuélvalo mediante el flujo habilitado.",
+    )
 
 
 def listar_compras(usuario_id, es_administrador, filtros):

@@ -84,6 +84,7 @@ CAMPOS_PELICULA_CREACION = {
     "duracion_minutos",
     "clasificacion",
     "genero",
+    "categoria_ids",
 }
 CAMPOS_PELICULA_ACTUALIZACION = {
     "titulo",
@@ -93,6 +94,7 @@ CAMPOS_PELICULA_ACTUALIZACION = {
     "clasificacion",
     "genero",
     "activa",
+    "categoria_ids",
 }
 CAMPOS_PELICULA_REQUERIDOS = {
     "titulo",
@@ -112,6 +114,25 @@ def _entero_positivo(valor, campo):
     if isinstance(valor, bool) or not isinstance(valor, int) or valor <= 0:
         return _error("CAMPO_INVALIDO", f"{campo} debe ser un número entero positivo.")
     return valor
+
+
+def _validar_categoria_ids(valor):
+    if not isinstance(valor, list):
+        return _error(
+            "CAMPO_INVALIDO",
+            "categoria_ids debe ser una lista de números enteros positivos.",
+        )
+
+    categoria_ids = []
+    for categoria_id in valor:
+        numero = _entero_positivo(categoria_id, "categoria_ids")
+        if es_respuesta_error(numero):
+            return numero
+
+        if numero not in categoria_ids:
+            categoria_ids.append(numero)
+
+    return categoria_ids
 
 
 def _texto_no_vacio(valor, campo):
@@ -177,6 +198,12 @@ def _validar_cuerpo_pelicula(datos, campos_admitidos, requeridos):
         resultado["duracion_minutos"] = duracion
     if "activa" in resultado and not isinstance(resultado["activa"], bool):
         return _error("CAMPO_INVALIDO", "activa debe ser un valor booleano.")
+
+    if "categoria_ids" in resultado:
+        categoria_ids = _validar_categoria_ids(resultado["categoria_ids"])
+        if es_respuesta_error(categoria_ids):
+            return categoria_ids
+        resultado["categoria_ids"] = categoria_ids
 
     return resultado
 
