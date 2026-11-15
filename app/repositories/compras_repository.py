@@ -154,6 +154,39 @@ def agregar_servicios_compra(conexion, compra_id, servicios):
         cursor.close()
 
 
+def contar_estacionamientos_dia(conexion, servicio_id, inicio_utc, fin_utc):
+    """Cuenta lugares activos del servicio para un día completo.
+
+    Las compras pendientes solo cuentan mientras su pago siga en proceso y
+    la reserva continúe vigente. La fila del servicio se bloquea en el flujo
+    de pago para serializar las operaciones concurrentes.
+    """
+    consulta = """
+        SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
+        FROM compras_servicios AS cs
+        INNER JOIN compras AS c ON c.id = cs.compra_id
+        INNER JOIN funciones AS f ON f.id = c.funcion_id
+        LEFT JOIN reservas AS r ON r.id = c.reserva_id
+        WHERE cs.servicio_id = %s
+          AND f.fecha_hora >= %s
+          AND f.fecha_hora < %s
+          AND (
+              c.estado = 'confirmada'
+              OR (
+                  c.estado = 'pendiente_pago'
+                  AND r.estado = 'pago_en_proceso'
+                  AND r.expira_en > UTC_TIMESTAMP()
+              )
+          )
+    """
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute(consulta, (servicio_id, inicio_utc, fin_utc))
+        return int(cursor.fetchone()["cantidad"])
+    finally:
+        cursor.close()
+
+
 def listar_compras(conexion, usuario_id=None, estado=None):
     condiciones = []
     parametros = []

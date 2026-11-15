@@ -149,3 +149,13 @@ CREATE TABLE IF NOT EXISTS compras_servicios (
     UNIQUE KEY uq_compras_servicios (compra_id, servicio_id)
 );
 
+CREATE TABLE IF NOT EXISTS reservas_estacionamiento (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    compra_id INT UNSIGNED NOT NULL,
+    fecha_inicio DATETIME NOT NULL,
+    fecha_fin DATETIME NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'ocupado',
+
+    CONSTRAINT fk_reserva_estacionamiento_compra
+        FOREIGN KEY (compra_id) REFERENCES compras(id)
+);

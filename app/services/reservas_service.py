@@ -1,7 +1,8 @@
 """Reservas temporales y resolución de pagos simulados."""
 
 import uuid
-from datetime import timezone
+from datetime import timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from mysql.connector import IntegrityError
 
@@ -13,8 +14,10 @@ from app.repositories.compras_repository import (
     bloquear_butacas,
     buscar_compra_por_id,
     buscar_ocupaciones_butacas,
+    contar_estacionamientos_dia,
     confirmar_compra as confirmar_compra_repository,
     crear_compra,
+    listar_servicios_compra,
 )
 from app.repositories.entradas_repository import crear_entrada
 from app.repositories.funciones_repository import buscar_funcion_para_compra
@@ -32,6 +35,7 @@ from app.repositories.reservas_repository import (
     retener_butacas,
     vender_butacas_reserva,
 )
+from app.repositories.servicios_repository import buscar_servicios_por_ids
 from app.services.compras_service import (
     _completar_compra,
     _preparar_servicios,
@@ -39,8 +43,58 @@ from app.services.compras_service import (
 )
 
 
+ZONA_HORARIA = ZoneInfo("America/Argentina/Buenos_Aires")
+SERVICIO_ESTACIONAMIENTO_ID = 9
+MAX_ESTACIONAMIENTOS_DIARIOS = 20
 ESTADOS_CON_BLOQUEO = {"retenida", "pago_en_proceso", "reservada"}
 
+
+def _rango_dia_utc(fecha_hora):
+    """Convierte el día local de una función en un rango UTC para MySQL."""
+    if fecha_hora.tzinfo is None:
+        fecha_local = fecha_hora.replace(tzinfo=ZONA_HORARIA)
+    else:
+        fecha_local = fecha_hora.astimezone(ZONA_HORARIA)
+    inicio_local = fecha_local.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    fin_local = inicio_local + timedelta(days=1)
+    return (
+        inicio_local.astimezone(timezone.utc).replace(tzinfo=None),
+        fin_local.astimezone(timezone.utc).replace(tzinfo=None),
+    )
+
+
+def _validar_estacionamiento(conexion, funcion, servicios):
+    estacionamiento = next(
+        (
+            servicio
+            for servicio in servicios
+            if servicio["servicio_id"] == SERVICIO_ESTACIONAMIENTO_ID
+        ),
+        None,
+    )
+    if estacionamiento is None:
+        return None
+
+    inicio_utc, fin_utc = _rango_dia_utc(funcion["fecha_hora"])
+    vendidos = contar_estacionamientos_dia(
+        conexion,
+        SERVICIO_ESTACIONAMIENTO_ID,
+        inicio_utc,
+        fin_utc,
+    )
+    solicitados = estacionamiento["cantidad"]
+    disponibles = MAX_ESTACIONAMIENTOS_DIARIOS - vendidos
+    if solicitados > disponibles:
+        return respuesta_error(
+            409,
+            "ESTACIONAMIENTO_AGOTADO",
+            "Estacionamiento no disponible",
+            f"Solo quedan {max(disponibles, 0)} lugares de estacionamiento "
+            "disponibles para ese día.",
+        )
+    return None
 
 def _fecha_utc_iso(fecha):
     if fecha is None:
@@ -332,6 +386,10 @@ def iniciar_pago(reserva_id, usuario_id, datos, idempotencia):
             conexion.rollback()
             return servicios_preparados
         servicios, total_servicios = servicios_preparados
+        error = _validar_estacionamiento(conexion, funcion, servicios)
+        if es_respuesta_error(error):
+            conexion.rollback()
+            return error
         precio_entrada = int(funcion["precio"])
         total_entradas = precio_entrada * len(butacas)
         compra_id = crear_compra(
@@ -473,6 +531,24 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
         ):
             conexion.rollback()
             return _butaca_no_disponible()
+
+        servicios_compra = listar_servicios_compra(
+            conexion,
+            reserva["compra_id"],
+        )
+        if any(
+            int(servicio["servicio_id"]) == SERVICIO_ESTACIONAMIENTO_ID
+            for servicio in servicios_compra
+        ):
+            buscar_servicios_por_ids(conexion, [SERVICIO_ESTACIONAMIENTO_ID])
+            error = _validar_estacionamiento(
+                conexion,
+                funcion,
+                servicios_compra,
+            )
+            if es_respuesta_error(error):
+                conexion.rollback()
+                return error
 
         if vender_butacas_reserva(conexion, reserva["id"]) != len(butacas):
             conexion.rollback()

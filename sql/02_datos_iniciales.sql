@@ -126,7 +126,8 @@ VALUES
     (5, 'Nachos con cheddar', 'Nachos crocantes con salsa de cheddar.', 5900, TRUE),
     (6, 'Chocolate', 'Chocolate con leche de 100 gramos.', 3500, TRUE),
     (7, 'Café con leche', 'Café suave con leche espumada.', 3900, TRUE),
-    (8, 'Helado individual', 'Pote individual, sabor a elección.', 4700, TRUE)
+    (8, 'Helado individual', 'Pote individual, sabor a elección.', 4700, TRUE),
+    (9, 'Estacionamiento', 'Lugar de estacionamiento por  todo el dia.', 5000, TRUE)
 ON DUPLICATE KEY UPDATE
     nombre = VALUES(nombre),
     descripcion = VALUES(descripcion),
