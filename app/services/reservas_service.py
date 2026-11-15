@@ -65,12 +65,17 @@ def _rango_dia_utc(fecha_hora):
     )
 
 
-def _validar_estacionamiento(conexion, funcion, servicios):
+def _validar_estacionamiento(
+    conexion,
+    funcion,
+    servicios,
+    excluir_compra_id=None,
+):
     estacionamiento = next(
         (
             servicio
             for servicio in servicios
-            if servicio["servicio_id"] == SERVICIO_ESTACIONAMIENTO_ID
+            if int(servicio["servicio_id"]) == SERVICIO_ESTACIONAMIENTO_ID
         ),
         None,
     )
@@ -78,14 +83,16 @@ def _validar_estacionamiento(conexion, funcion, servicios):
         return None
 
     inicio_utc, fin_utc = _rango_dia_utc(funcion["fecha_hora"])
-    vendidos = contar_estacionamientos_dia(
+    ocupados = contar_estacionamientos_dia(
         conexion,
         SERVICIO_ESTACIONAMIENTO_ID,
         inicio_utc,
         fin_utc,
+        excluir_compra_id=excluir_compra_id,
     )
-    solicitados = estacionamiento["cantidad"]
-    disponibles = MAX_ESTACIONAMIENTOS_DIARIOS - vendidos
+    solicitados = int(estacionamiento["cantidad"])
+    disponibles = MAX_ESTACIONAMIENTOS_DIARIOS - ocupados
+
     if solicitados > disponibles:
         return respuesta_error(
             409,
@@ -524,6 +531,7 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             reserva["id"],
             bloquear=True,
         )
+        
         if not butacas or any(
             item["estado"] != "pago_en_proceso"
             or item["reserva_id"] != reserva["id"]
@@ -531,7 +539,6 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
         ):
             conexion.rollback()
             return _butaca_no_disponible()
-
         servicios_compra = listar_servicios_compra(
             conexion,
             reserva["compra_id"],
@@ -545,6 +552,7 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
                 conexion,
                 funcion,
                 servicios_compra,
+                excluir_compra_id=reserva["compra_id"],
             )
             if es_respuesta_error(error):
                 conexion.rollback()

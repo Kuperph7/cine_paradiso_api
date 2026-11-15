@@ -154,14 +154,18 @@ def agregar_servicios_compra(conexion, compra_id, servicios):
         cursor.close()
 
 
-def contar_estacionamientos_dia(conexion, servicio_id, inicio_utc, fin_utc):
-    """Cuenta lugares activos del servicio para un día completo.
-
-    Las compras pendientes solo cuentan mientras su pago siga en proceso y
-    la reserva continúe vigente. La fila del servicio se bloquea en el flujo
-    de pago para serializar las operaciones concurrentes.
-    """
-    consulta = """
+def contar_estacionamientos_dia(
+    conexion,
+    servicio_id,
+    inicio_local,
+    fin_local,
+    excluir_compra_id=None,
+):
+    exclusion = "" if excluir_compra_id is None else "AND c.id <> %s"
+    parametros = [servicio_id, inicio_local, fin_local]
+    if excluir_compra_id is not None:
+        parametros.append(excluir_compra_id)
+    consulta = f"""
         SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
         FROM compras_servicios AS cs
         INNER JOIN compras AS c ON c.id = cs.compra_id
@@ -178,14 +182,57 @@ def contar_estacionamientos_dia(conexion, servicio_id, inicio_utc, fin_utc):
                   AND r.expira_en > UTC_TIMESTAMP()
               )
           )
+          {exclusion}
     """
     cursor = conexion.cursor(dictionary=True)
     try:
-        cursor.execute(consulta, (servicio_id, inicio_utc, fin_utc))
+        cursor.execute(consulta, tuple(parametros))
         return int(cursor.fetchone()["cantidad"])
     finally:
         cursor.close()
+        
+        
+def contar_estacionamientos_dia(
+    conexion,
+    servicio_id,
+    inicio_utc,
+    fin_utc,
+    excluir_compra_id=None,
+):
+    """Cuenta estacionamientos vendidos o retenidos por pagos vigentes."""
+    exclusion = ""
+    parametros = [servicio_id, inicio_utc, fin_utc]
 
+    if excluir_compra_id is not None:
+        exclusion = "AND c.id <> %s"
+        parametros.append(excluir_compra_id)
+
+    consulta = f"""
+        SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
+        FROM compras_servicios AS cs
+        INNER JOIN compras AS c ON c.id = cs.compra_id
+        INNER JOIN funciones AS f ON f.id = c.funcion_id
+        LEFT JOIN reservas AS r ON r.id = c.reserva_id
+        WHERE cs.servicio_id = %s
+          AND f.fecha_hora >= %s
+          AND f.fecha_hora < %s
+          AND (
+              c.estado = 'confirmada'
+              OR (
+                  c.estado = 'pendiente_pago'
+                  AND r.estado = 'pago_en_proceso'
+                  AND r.expira_en > UTC_TIMESTAMP()
+              )
+          )
+          {exclusion}
+    """
+
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute(consulta, tuple(parametros))
+        return int(cursor.fetchone()["cantidad"])
+    finally:
+        cursor.close()
 
 def listar_compras(conexion, usuario_id=None, estado=None):
     condiciones = []
