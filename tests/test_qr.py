@@ -7,7 +7,7 @@ def test_validar_qr_vigente_permite_ingreso(monkeypatch):
     entrada = {
         "id": 10,
         "funcion_id": 7,
-        "estado": "vigente",
+        "estado": "emitida",
     }
 
     monkeypatch.setattr(
