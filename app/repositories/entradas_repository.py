@@ -80,7 +80,7 @@ def marcar_entrada_utilizada(entrada_id: int) -> int:
         query = """
             UPDATE entradas
             SET estado = 'utilizada', fecha_hora_validacion = %s
-            WHERE id = %s AND estado = 'vigente'
+            WHERE id = %s AND estado = 'emitida'
         """
         cursor.execute(query, (ahora, entrada_id))
         conn.commit()
