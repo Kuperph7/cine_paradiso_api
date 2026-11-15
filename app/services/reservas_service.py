@@ -32,11 +32,14 @@ from app.repositories.reservas_repository import (
     retener_butacas,
     vender_butacas_reserva,
 )
+
 from app.services.compras_service import (
     _completar_compra,
     _preparar_servicios,
     _validar_funcion,
+    enviar_correo_compra_confirmada,
 )
+
 
 
 ESTADOS_CON_BLOQUEO = {"retenida", "pago_en_proceso", "reservada"}
@@ -497,9 +500,14 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             )
         confirmar_reserva(conexion, reserva["id"])
         compra = buscar_compra_por_id(conexion, reserva["compra_id"])
+
         resultado = _completar_compra(conexion, compra)
         conexion.commit()
+
+        enviar_correo_compra_confirmada(usuario_id, resultado)
+
         return resultado
+
     except IntegrityError:
         conexion.rollback()
         return respuesta_error(
