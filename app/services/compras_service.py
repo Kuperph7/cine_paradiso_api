@@ -30,6 +30,7 @@ from app.repositories.entradas_repository import (
 from app.repositories.funciones_repository import buscar_funcion_para_compra
 from app.repositories.servicios_repository import buscar_servicios_por_ids
 
+from app.integrations.email import enviar_correo_compra
 
 ZONA_HORARIA = ZoneInfo("America/Argentina/Buenos_Aires")
 PLAZO_CANCELACION = timedelta(hours=1)
@@ -281,6 +282,12 @@ def crear_compra(usuario_id, datos):
         compra = buscar_compra_por_id(conexion, compra_id)
         resultado = _completar_compra(conexion, compra)
         conexion.commit()
+
+        try:
+            enviar_correo_compra(conexion, compra_id)
+        except Exception as error:
+            print(f"Compra #{compra_id} confirmada, pero falló el envío de correo: {error}")
+
         return resultado
     except IntegrityError:
         conexion.rollback()
