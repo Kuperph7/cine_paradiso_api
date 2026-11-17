@@ -176,3 +176,35 @@ def enviar_correo_compra(conn, compra_id):
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(remitente, password_app)
         server.send_message(mensaje)
+
+def enviar_correo_registro(destinatario, nombre_usuario):
+    """Envía un correo electrónico de confirmación cuando un usuario se registra con éxito."""
+    remitente = os.getenv("MAIL_USER")
+    password_app = os.getenv("MAIL_PASSWORD")
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; text-align: center; color: #102044;">
+        <h2>¡Bienvenido/a a Cine Paradiso, {nombre_usuario}!</h2>
+        
+        <div style="background-color: #f7d369; border-radius: 20px; padding: 24px; margin: 20px 0;">
+            <p style="font-size: 16px; margin: 0 0 12px 0;">
+                Tu cuenta fue creada correctamente con el correo <strong>{destinatario}</strong>.
+            </p>
+            <p style="font-size: 15px; margin: 0;">
+                Ya podés iniciar sesión, explorar nuestra cartelera, elegir tus butacas y reservar combos para tus próximas funciones.
+            </p>
+        </div>
+        
+        <p style="font-size: 12px; color: #555;">Equipo de Cine Paradiso</p>
+    </div>
+    """
+
+    mensaje = MIMEMultipart("alternative")
+    mensaje["Subject"] = "¡Registro exitoso! Bienvenido/a a Cine Paradiso"
+    mensaje["From"] = remitente
+    mensaje["To"] = destinatario
+    mensaje.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(remitente, password_app)
+        server.send_message(mensaje)
