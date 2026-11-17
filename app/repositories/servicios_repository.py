@@ -124,5 +124,16 @@ def buscar_servicios_por_ids(conexion, servicio_ids):
         cursor.close()
 
 def eliminar_servicio(servicio_id):
-    """Compatibilidad: eliminar un servicio realiza una baja lógica."""
-    dar_de_baja_servicio(servicio_id)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "DELETE FROM servicios WHERE id = %s",
+            (servicio_id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()

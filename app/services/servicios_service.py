@@ -96,5 +96,5 @@ def eliminar_servicio(servicio_id):
     if servicio is None:
         return _servicio_no_encontrado()
 
-    servicios_repository.dar_de_baja_servicio(servicio_id)
+    servicios_repository.eliminar_servicio(servicio_id)
     return None
