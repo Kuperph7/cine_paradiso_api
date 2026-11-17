@@ -158,11 +158,29 @@ def contar_estacionamientos_ocupados(
     conexion,
     servicio_id,
     duracion_segundos,
+    funcion_id=None,
     excluir_compra_id=None,
 ):
-    """Cuenta lugares ocupados dentro de la ventana temporal o en pago activo."""
+    """Cuenta lugares ocupados dentro de la ventana temporal de la función."""
     exclusion = ""
-    parametros = [servicio_id, duracion_segundos]
+    join_funcion = ""
+    condicion_funcion = ""
+    parametros = []
+
+    if funcion_id is not None:
+        join_funcion = (
+            "INNER JOIN funciones AS f ON f.id = c.funcion_id "
+            "INNER JOIN funciones AS f_actual ON f_actual.id = %s"
+        )
+        condicion_funcion = (
+            "AND ABS(TIMESTAMPDIFF(SECOND, f.fecha_hora, f_actual.fecha_hora)) < %s"
+        )
+        parametros.append(funcion_id)
+
+    parametros.append(servicio_id)
+    if funcion_id is not None:
+        parametros.append(duracion_segundos)
+    parametros.append(duracion_segundos)
 
     if excluir_compra_id is not None:
         exclusion = "AND c.id <> %s"
@@ -172,8 +190,10 @@ def contar_estacionamientos_ocupados(
         SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
         FROM compras_servicios AS cs
         INNER JOIN compras AS c ON c.id = cs.compra_id
+        {join_funcion}
         LEFT JOIN reservas AS r ON r.id = c.reserva_id
         WHERE cs.servicio_id = %s
+          {condicion_funcion}
           AND (
               (
                   c.estado = 'confirmada'

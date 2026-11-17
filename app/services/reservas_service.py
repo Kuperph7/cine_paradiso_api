@@ -47,7 +47,12 @@ from app.services.servicios_service import obtener_config_estacionamiento
 ESTADOS_CON_BLOQUEO = {"retenida", "pago_en_proceso", "reservada"}
 
 
-def _validar_estacionamiento(conexion, servicios, excluir_compra_id=None):
+def _validar_estacionamiento(
+    conexion,
+    servicios,
+    funcion_id=None,
+    excluir_compra_id=None,
+):
     config = obtener_config_estacionamiento()
     estacionamiento = next(
         (
@@ -64,6 +69,7 @@ def _validar_estacionamiento(conexion, servicios, excluir_compra_id=None):
         conexion,
         config["servicio_id"],
         config["duracion_segundos"],
+        funcion_id=funcion_id,
         excluir_compra_id=excluir_compra_id,
     )
     solicitados = int(estacionamiento["cantidad"])
@@ -369,7 +375,11 @@ def iniciar_pago(reserva_id, usuario_id, datos, idempotencia):
             conexion.rollback()
             return servicios_preparados
         servicios, total_servicios = servicios_preparados
-        error = _validar_estacionamiento(conexion, servicios)
+        error = _validar_estacionamiento(
+            conexion,
+            servicios,
+            funcion_id=funcion["id"],
+        )
         if es_respuesta_error(error):
             conexion.rollback()
             return error
@@ -531,6 +541,7 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             error = _validar_estacionamiento(
                 conexion,
                 servicios_compra,
+                funcion_id=funcion["id"],
                 excluir_compra_id=reserva["compra_id"],
             )
             if es_respuesta_error(error):

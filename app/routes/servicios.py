@@ -43,9 +43,16 @@ def listar_servicios():
             "El filtro incluir_inactivos es exclusivo del administrador.",
         )
 
-    resultado = listar_servicios_service(
-        incluir_inactivos=True
-    )
+    funcion_id = request.args.get("funcion_id", type=int)
+    if funcion_id is not None:
+        resultado = listar_servicios_service(
+            incluir_inactivos=incluir_inactivos,
+            funcion_id=funcion_id,
+        )
+    else:
+        resultado = listar_servicios_service(
+            incluir_inactivos=incluir_inactivos
+        )
     return jsonify(resultado), 200
 
 
