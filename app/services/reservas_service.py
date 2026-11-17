@@ -1,8 +1,7 @@
 """Reservas temporales y resolución de pagos simulados."""
 
 import uuid
-from datetime import timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import timezone
 
 from mysql.connector import IntegrityError
 
@@ -14,8 +13,8 @@ from app.repositories.compras_repository import (
     bloquear_butacas,
     buscar_compra_por_id,
     buscar_ocupaciones_butacas,
-    contar_estacionamientos_dia,
     confirmar_compra as confirmar_compra_repository,
+    contar_estacionamientos_ocupados,
     crear_compra,
     listar_servicios_compra,
 )
@@ -40,66 +39,43 @@ from app.services.compras_service import (
     _completar_compra,
     _preparar_servicios,
     _validar_funcion,
+    enviar_correo_compra_confirmada,
 )
+from app.services.servicios_service import obtener_config_estacionamiento
 
 
-ZONA_HORARIA = ZoneInfo("America/Argentina/Buenos_Aires")
-SERVICIO_ESTACIONAMIENTO_ID = 9
-MAX_ESTACIONAMIENTOS_DIARIOS = 20
 ESTADOS_CON_BLOQUEO = {"retenida", "pago_en_proceso", "reservada"}
 
 
-def _rango_dia_utc(fecha_hora):
-    """Convierte el día local de una función en un rango UTC para MySQL."""
-    if fecha_hora.tzinfo is None:
-        fecha_local = fecha_hora.replace(tzinfo=ZONA_HORARIA)
-    else:
-        fecha_local = fecha_hora.astimezone(ZONA_HORARIA)
-    inicio_local = fecha_local.replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    fin_local = inicio_local + timedelta(days=1)
-    return (
-        inicio_local.astimezone(timezone.utc).replace(tzinfo=None),
-        fin_local.astimezone(timezone.utc).replace(tzinfo=None),
-    )
-
-
-def _validar_estacionamiento(
-    conexion,
-    funcion,
-    servicios,
-    excluir_compra_id=None,
-):
+def _validar_estacionamiento(conexion, servicios, excluir_compra_id=None):
+    config = obtener_config_estacionamiento()
     estacionamiento = next(
         (
             servicio
             for servicio in servicios
-            if int(servicio["servicio_id"]) == SERVICIO_ESTACIONAMIENTO_ID
+            if int(servicio["servicio_id"]) == config["servicio_id"]
         ),
         None,
     )
     if estacionamiento is None:
         return None
 
-    inicio_utc, fin_utc = _rango_dia_utc(funcion["fecha_hora"])
-    ocupados = contar_estacionamientos_dia(
+    ocupados = contar_estacionamientos_ocupados(
         conexion,
-        SERVICIO_ESTACIONAMIENTO_ID,
-        inicio_utc,
-        fin_utc,
+        config["servicio_id"],
+        config["duracion_segundos"],
         excluir_compra_id=excluir_compra_id,
     )
     solicitados = int(estacionamiento["cantidad"])
-    disponibles = MAX_ESTACIONAMIENTOS_DIARIOS - ocupados
+    disponibles = max(0, config["capacidad_maxima"] - ocupados)
 
     if solicitados > disponibles:
         return respuesta_error(
             409,
             "ESTACIONAMIENTO_AGOTADO",
             "Estacionamiento no disponible",
-            f"Solo quedan {max(disponibles, 0)} lugares de estacionamiento "
-            "disponibles para ese día.",
+            f"Solo quedan {disponibles} lugares de estacionamiento "
+            "disponibles en este momento.",
         )
     return None
 
@@ -393,7 +369,7 @@ def iniciar_pago(reserva_id, usuario_id, datos, idempotencia):
             conexion.rollback()
             return servicios_preparados
         servicios, total_servicios = servicios_preparados
-        error = _validar_estacionamiento(conexion, funcion, servicios)
+        error = _validar_estacionamiento(conexion, servicios)
         if es_respuesta_error(error):
             conexion.rollback()
             return error
@@ -543,14 +519,17 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             conexion,
             reserva["compra_id"],
         )
+        config_estacionamiento = obtener_config_estacionamiento()
         if any(
-            int(servicio["servicio_id"]) == SERVICIO_ESTACIONAMIENTO_ID
+            int(servicio["servicio_id"]) == config_estacionamiento["servicio_id"]
             for servicio in servicios_compra
         ):
-            buscar_servicios_por_ids(conexion, [SERVICIO_ESTACIONAMIENTO_ID])
+            buscar_servicios_por_ids(
+                conexion,
+                [config_estacionamiento["servicio_id"]],
+            )
             error = _validar_estacionamiento(
                 conexion,
-                funcion,
                 servicios_compra,
                 excluir_compra_id=reserva["compra_id"],
             )
@@ -581,9 +560,14 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             )
         confirmar_reserva(conexion, reserva["id"])
         compra = buscar_compra_por_id(conexion, reserva["compra_id"])
+
         resultado = _completar_compra(conexion, compra)
         conexion.commit()
+
+        enviar_correo_compra_confirmada(usuario_id, resultado)
+
         return resultado
+
     except IntegrityError:
         conexion.rollback()
         return respuesta_error(

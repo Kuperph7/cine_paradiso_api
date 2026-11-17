@@ -2,6 +2,55 @@
 from app.db import get_db_connection
 
 
+def asegurar_servicio_estacionamiento(servicio_id: int):
+    """Garantiza que exista el servicio de estacionamiento en la base de datos."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            INSERT IGNORE INTO servicios (id, nombre, descripcion, precio, activo)
+            VALUES (%s, 'Estacionamiento', 'Lugar de estacionamiento por 3 horas.', 5000, TRUE)
+        """
+        cursor.execute(query, (servicio_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def obtener_estacionamientos_ocupados(servicio_id: int, duracion_segundos: int) -> int:
+    """Devuelve cuántos lugares de estacionamiento están ocupados actualmente."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        query = """
+            SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
+            FROM compras_servicios AS cs
+            INNER JOIN compras AS c ON c.id = cs.compra_id
+            LEFT JOIN reservas AS r ON r.id = c.reserva_id
+            WHERE cs.servicio_id = %s
+              AND (
+                  (
+                      c.estado = 'confirmada'
+                      AND c.fecha_hora > DATE_SUB(UTC_TIMESTAMP(), INTERVAL %s SECOND)
+                  )
+                  OR (
+                      c.estado = 'pendiente_pago'
+                      AND r.estado = 'pago_en_proceso'
+                      AND r.expira_en > UTC_TIMESTAMP()
+                  )
+              )
+        """
+        cursor.execute(query, (servicio_id, duracion_segundos))
+        return int(cursor.fetchone()["cantidad"])
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def obtener_todos_los_servicios(incluir_inactivos=True):
     """Obtiene servicios ordenados y permite excluir los inactivos."""
     conn = get_db_connection()
@@ -124,5 +173,16 @@ def buscar_servicios_por_ids(conexion, servicio_ids):
         cursor.close()
 
 def eliminar_servicio(servicio_id):
-    """Compatibilidad: eliminar un servicio realiza una baja lógica."""
-    dar_de_baja_servicio(servicio_id)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "DELETE FROM servicios WHERE id = %s",
+            (servicio_id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()

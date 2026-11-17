@@ -44,7 +44,7 @@ def listar_servicios():
         )
 
     resultado = listar_servicios_service(
-        incluir_inactivos=incluir_inactivos
+        incluir_inactivos=True
     )
     return jsonify(resultado), 200
 

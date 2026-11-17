@@ -6,15 +6,42 @@ from app.errors import respuesta_error
 from app.repositories import servicios_repository
 
 
-def _serializar_servicio(servicio):
-    """Adapta los tipos de MySQL al esquema Servicio de Swagger."""
+def obtener_config_estacionamiento():
+    """Parámetros del estacionamiento definidos localmente (sin variables globales)."""
     return {
+        "servicio_id": 9,
+        "capacidad_maxima": 20,
+        # 3 horas de ocupación (3 * 3600 = 10800 segundos).
+        "duracion_segundos": 3 * 3600,
+    }
+
+
+def _calcular_disponibles_estacionamiento():
+    config = obtener_config_estacionamiento()
+    ocupados = servicios_repository.obtener_estacionamientos_ocupados(
+        config["servicio_id"],
+        config["duracion_segundos"],
+    )
+    return max(0, config["capacidad_maxima"] - ocupados)
+
+
+def _serializar_servicio(servicio, disponibles_estacionamiento=None):
+    """Adapta los tipos de MySQL al esquema Servicio de Swagger."""
+    config = obtener_config_estacionamiento()
+    resultado = {
         "id": int(servicio["id"]),
         "nombre": servicio["nombre"],
         "descripcion": servicio["descripcion"] or "",
         "precio": int(servicio["precio"]),
         "activo": bool(servicio["activo"]),
     }
+    if int(servicio["id"]) == config["servicio_id"]:
+        if disponibles_estacionamiento is None:
+            disponibles_estacionamiento = _calcular_disponibles_estacionamiento()
+        resultado["disponibles"] = disponibles_estacionamiento
+        resultado["capacidad_maxima"] = config["capacidad_maxima"]
+        resultado["duracion_segundos"] = config["duracion_segundos"]
+    return resultado
 
 
 def _servicio_no_encontrado():
@@ -37,11 +64,19 @@ def _servicio_duplicado():
 
 def listar_servicios(incluir_inactivos=False):
     """Lista el catálogo público o el catálogo administrativo completo."""
+    config = obtener_config_estacionamiento()
+    servicios_repository.asegurar_servicio_estacionamiento(
+        config["servicio_id"]
+    )
     servicios = servicios_repository.obtener_todos_los_servicios(
         incluir_inactivos=incluir_inactivos
     )
+    disponibles = _calcular_disponibles_estacionamiento()
     return {
-        "servicios": [_serializar_servicio(servicio) for servicio in servicios]
+        "servicios": [
+            _serializar_servicio(servicio, disponibles)
+            for servicio in servicios
+        ]
     }
 
 
@@ -96,5 +131,5 @@ def eliminar_servicio(servicio_id):
     if servicio is None:
         return _servicio_no_encontrado()
 
-    servicios_repository.dar_de_baja_servicio(servicio_id)
+    servicios_repository.eliminar_servicio(servicio_id)
     return None
