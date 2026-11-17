@@ -2,6 +2,89 @@
 from app.db import get_db_connection
 
 
+def asegurar_servicio_estacionamiento(servicio_id: int):
+    """Garantiza que exista el servicio de estacionamiento en la base de datos."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            INSERT IGNORE INTO servicios (id, nombre, descripcion, precio, activo)
+            VALUES (%s, 'Estacionamiento', 'Lugar de estacionamiento por 3 horas.', 5000, TRUE)
+        """
+        cursor.execute(query, (servicio_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def obtener_estacionamientos_ocupados(
+    servicio_id: int,
+    duracion_segundos: int,
+    funcion_id=None,
+) -> int:
+    """Devuelve cuántos lugares de estacionamiento están ocupados actualmente."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if funcion_id is not None:
+            query = """
+                SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
+                FROM compras_servicios AS cs
+                INNER JOIN compras AS c ON c.id = cs.compra_id
+                INNER JOIN funciones AS f ON f.id = c.funcion_id
+                INNER JOIN funciones AS f_actual ON f_actual.id = %s
+                LEFT JOIN reservas AS r ON r.id = c.reserva_id
+                WHERE cs.servicio_id = %s
+                  AND ABS(TIMESTAMPDIFF(SECOND, f.fecha_hora, f_actual.fecha_hora)) < %s
+                  AND (
+                      (
+                          c.estado = 'confirmada'
+                          AND c.fecha_hora > DATE_SUB(UTC_TIMESTAMP(), INTERVAL %s SECOND)
+                      )
+                      OR (
+                          c.estado = 'pendiente_pago'
+                          AND r.estado = 'pago_en_proceso'
+                          AND r.expira_en > UTC_TIMESTAMP()
+                      )
+                  )
+            """
+            parametros = (
+                funcion_id,
+                servicio_id,
+                duracion_segundos,
+                duracion_segundos,
+            )
+        else:
+            query = """
+                SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
+                FROM compras_servicios AS cs
+                INNER JOIN compras AS c ON c.id = cs.compra_id
+                LEFT JOIN reservas AS r ON r.id = c.reserva_id
+                WHERE cs.servicio_id = %s
+                  AND (
+                      (
+                          c.estado = 'confirmada'
+                          AND c.fecha_hora > DATE_SUB(UTC_TIMESTAMP(), INTERVAL %s SECOND)
+                      )
+                      OR (
+                          c.estado = 'pendiente_pago'
+                          AND r.estado = 'pago_en_proceso'
+                          AND r.expira_en > UTC_TIMESTAMP()
+                      )
+                  )
+            """
+            parametros = (servicio_id, duracion_segundos)
+        cursor.execute(query, parametros)
+        return int(cursor.fetchone()["cantidad"])
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def obtener_todos_los_servicios(incluir_inactivos=True):
     """Obtiene servicios ordenados y permite excluir los inactivos."""
     conn = get_db_connection()

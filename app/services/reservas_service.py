@@ -14,7 +14,9 @@ from app.repositories.compras_repository import (
     buscar_compra_por_id,
     buscar_ocupaciones_butacas,
     confirmar_compra as confirmar_compra_repository,
+    contar_estacionamientos_ocupados,
     crear_compra,
+    listar_servicios_compra,
 )
 from app.repositories.entradas_repository import crear_entrada
 from app.repositories.funciones_repository import buscar_funcion_para_compra
@@ -32,18 +34,56 @@ from app.repositories.reservas_repository import (
     retener_butacas,
     vender_butacas_reserva,
 )
-
+from app.repositories.servicios_repository import buscar_servicios_por_ids
 from app.services.compras_service import (
     _completar_compra,
     _preparar_servicios,
     _validar_funcion,
     enviar_correo_compra_confirmada,
 )
-
+from app.services.servicios_service import obtener_config_estacionamiento
 
 
 ESTADOS_CON_BLOQUEO = {"retenida", "pago_en_proceso", "reservada"}
 
+
+def _validar_estacionamiento(
+    conexion,
+    servicios,
+    funcion_id=None,
+    excluir_compra_id=None,
+):
+    config = obtener_config_estacionamiento()
+    estacionamiento = next(
+        (
+            servicio
+            for servicio in servicios
+            if int(servicio["servicio_id"]) == config["servicio_id"]
+        ),
+        None,
+    )
+    if estacionamiento is None:
+        return None
+
+    ocupados = contar_estacionamientos_ocupados(
+        conexion,
+        config["servicio_id"],
+        config["duracion_segundos"],
+        funcion_id=funcion_id,
+        excluir_compra_id=excluir_compra_id,
+    )
+    solicitados = int(estacionamiento["cantidad"])
+    disponibles = max(0, config["capacidad_maxima"] - ocupados)
+
+    if solicitados > disponibles:
+        return respuesta_error(
+            409,
+            "ESTACIONAMIENTO_AGOTADO",
+            "Estacionamiento no disponible",
+            f"Solo quedan {disponibles} lugares de estacionamiento "
+            "disponibles en este momento.",
+        )
+    return None
 
 def _fecha_utc_iso(fecha):
     if fecha is None:
@@ -335,6 +375,14 @@ def iniciar_pago(reserva_id, usuario_id, datos, idempotencia):
             conexion.rollback()
             return servicios_preparados
         servicios, total_servicios = servicios_preparados
+        error = _validar_estacionamiento(
+            conexion,
+            servicios,
+            funcion_id=funcion["id"],
+        )
+        if es_respuesta_error(error):
+            conexion.rollback()
+            return error
         precio_entrada = int(funcion["precio"])
         total_entradas = precio_entrada * len(butacas)
         compra_id = crear_compra(
@@ -469,6 +517,7 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             reserva["id"],
             bloquear=True,
         )
+        
         if not butacas or any(
             item["estado"] != "pago_en_proceso"
             or item["reserva_id"] != reserva["id"]
@@ -476,6 +525,28 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
         ):
             conexion.rollback()
             return _butaca_no_disponible()
+        servicios_compra = listar_servicios_compra(
+            conexion,
+            reserva["compra_id"],
+        )
+        config_estacionamiento = obtener_config_estacionamiento()
+        if any(
+            int(servicio["servicio_id"]) == config_estacionamiento["servicio_id"]
+            for servicio in servicios_compra
+        ):
+            buscar_servicios_por_ids(
+                conexion,
+                [config_estacionamiento["servicio_id"]],
+            )
+            error = _validar_estacionamiento(
+                conexion,
+                servicios_compra,
+                funcion_id=funcion["id"],
+                excluir_compra_id=reserva["compra_id"],
+            )
+            if es_respuesta_error(error):
+                conexion.rollback()
+                return error
 
         if vender_butacas_reserva(conexion, reserva["id"]) != len(butacas):
             conexion.rollback()

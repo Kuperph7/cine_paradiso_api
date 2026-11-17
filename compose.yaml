@@ -62,7 +62,7 @@ services:
 
   frontend:
     build:
-      context: ../cine-paradiso-web
+      context: ${FRONTEND_PATH:-../cine-paradiso-web}
       dockerfile: Dockerfile
     environment:
       FLASK_DEBUG: ${FRONTEND_FLASK_DEBUG:-false}

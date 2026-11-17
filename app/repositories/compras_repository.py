@@ -154,6 +154,66 @@ def agregar_servicios_compra(conexion, compra_id, servicios):
         cursor.close()
 
 
+def contar_estacionamientos_ocupados(
+    conexion,
+    servicio_id,
+    duracion_segundos,
+    funcion_id=None,
+    excluir_compra_id=None,
+):
+    """Cuenta lugares ocupados dentro de la ventana temporal de la función."""
+    exclusion = ""
+    join_funcion = ""
+    condicion_funcion = ""
+    parametros = []
+
+    if funcion_id is not None:
+        join_funcion = (
+            "INNER JOIN funciones AS f ON f.id = c.funcion_id "
+            "INNER JOIN funciones AS f_actual ON f_actual.id = %s"
+        )
+        condicion_funcion = (
+            "AND ABS(TIMESTAMPDIFF(SECOND, f.fecha_hora, f_actual.fecha_hora)) < %s"
+        )
+        parametros.append(funcion_id)
+
+    parametros.append(servicio_id)
+    if funcion_id is not None:
+        parametros.append(duracion_segundos)
+    parametros.append(duracion_segundos)
+
+    if excluir_compra_id is not None:
+        exclusion = "AND c.id <> %s"
+        parametros.append(excluir_compra_id)
+
+    consulta = f"""
+        SELECT COALESCE(SUM(cs.cantidad), 0) AS cantidad
+        FROM compras_servicios AS cs
+        INNER JOIN compras AS c ON c.id = cs.compra_id
+        {join_funcion}
+        LEFT JOIN reservas AS r ON r.id = c.reserva_id
+        WHERE cs.servicio_id = %s
+          {condicion_funcion}
+          AND (
+              (
+                  c.estado = 'confirmada'
+                  AND c.fecha_hora > DATE_SUB(UTC_TIMESTAMP(), INTERVAL %s SECOND)
+              )
+              OR (
+                  c.estado = 'pendiente_pago'
+                  AND r.estado = 'pago_en_proceso'
+                  AND r.expira_en > UTC_TIMESTAMP()
+              )
+          )
+          {exclusion}
+    """
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute(consulta, tuple(parametros))
+        return int(cursor.fetchone()["cantidad"])
+    finally:
+        cursor.close()
+
 def listar_compras(conexion, usuario_id=None, estado=None):
     condiciones = []
     parametros = []

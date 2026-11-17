@@ -350,3 +350,4 @@ def cancelar_compra(compra_id, usuario_id, es_administrador, motivo=None):
     finally:
         conexion.close()
 
+
