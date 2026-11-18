@@ -6,6 +6,7 @@ from app.errors import es_respuesta_error, respuesta_error
 from app.repositories import usuarios_repository
 from app.security import ROL_CLIENTE, generar_token_acceso
 
+from app.integrations.email import enviar_correo_registro
 
 def _error_email_duplicado():
     return respuesta_error(
@@ -35,10 +36,17 @@ def registrar_cliente(data: dict) -> dict:
             password_hash=password_hash,
             rol=ROL_CLIENTE,
         )
+
+
     except IntegrityError:
         # La restricción UNIQUE es la defensa final si dos registros con el
         # mismo email superan la consulta previa al mismo tiempo.
         return _error_email_duplicado()
+
+    try:
+        enviar_correo_registro(email, nombre)
+    except Exception as error:
+        print(f"No se pudo enviar el correo de registro: {error}")
 
     return {
         "id": nuevo_id,
