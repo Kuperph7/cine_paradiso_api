@@ -1,5 +1,6 @@
 -- Cine Paradiso - datos iniciales para desarrollo local
 -- Este script puede ejecutarse más de una vez sin duplicar los registros.
+SET NAMES utf8mb4;
 
 USE cine_paradiso;
 
