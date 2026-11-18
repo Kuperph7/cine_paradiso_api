@@ -5,6 +5,8 @@
 -- Los valores permitidos de formato e idioma se validan en Flask.
 -- Ejecutar una sola vez después del esquema inicial.
 
+SET NAMES utf8mb4;
+
 USE cine_paradiso;
 
 -- Categorías disponibles para clasificar y filtrar películas.
