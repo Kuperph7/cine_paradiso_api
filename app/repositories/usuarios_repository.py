@@ -43,3 +43,20 @@ def obtener_usuario_por_id(usuario_id: int):
     finally:
         cursor.close()
         conn.close()
+
+
+def actualizar_password_usuario(usuario_id: int, password_hash: str) -> bool:
+    """Actualiza el hash de la contraseña de un usuario existente."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        query = "UPDATE usuarios SET password_hash = %s WHERE id = %s"
+        cursor.execute(query, (password_hash, usuario_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
