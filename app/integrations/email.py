@@ -177,11 +177,43 @@ def enviar_correo_compra(conn, compra_id):
         server.login(remitente, password_app)
         server.send_message(mensaje)
 
+def _enviar_mensaje_html(destinatario, asunto, html):
+    """Envía un correo HTML usando la configuración SMTP del proyecto o Gmail."""
+    smtp_host = os.getenv("SMTP_HOST", "127.0.0.1")
+    smtp_port = int(os.getenv("SMTP_PORT", "1025"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    mail_user = os.getenv("MAIL_USER")
+    mail_password = os.getenv("MAIL_PASSWORD")
+    remitente = (
+        os.getenv("SMTP_FROM")
+        or mail_user
+        or "entradas@cineparadiso.local"
+    )
+
+    mensaje = MIMEMultipart("alternative")
+    mensaje["Subject"] = asunto
+    mensaje["From"] = remitente
+    mensaje["To"] = destinatario
+    mensaje.attach(MIMEText(html, "html"))
+
+    if mail_user and mail_password and not os.getenv("SMTP_HOST"):
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
+            server.login(mail_user, mail_password)
+            server.send_message(mensaje)
+        return True
+
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as servidor:
+        if os.getenv("SMTP_STARTTLS", "false").lower() == "true":
+            servidor.starttls()
+        if smtp_user and smtp_password:
+            servidor.login(smtp_user, smtp_password)
+        servidor.send_message(mensaje)
+    return True
+
+
 def enviar_correo_registro(destinatario, nombre_usuario):
     """Envía un correo electrónico de confirmación cuando un usuario se registra con éxito."""
-    remitente = os.getenv("MAIL_USER")
-    password_app = os.getenv("MAIL_PASSWORD")
-
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; text-align: center; color: #102044;">
         <h2>¡Bienvenido/a a Cine Paradiso, {nombre_usuario}!</h2>
@@ -198,13 +230,49 @@ def enviar_correo_registro(destinatario, nombre_usuario):
         <p style="font-size: 12px; color: #555;">Equipo de Cine Paradiso</p>
     </div>
     """
+    return _enviar_mensaje_html(
+        destinatario,
+        "¡Registro exitoso! Bienvenido/a a Cine Paradiso",
+        html,
+    )
 
-    mensaje = MIMEMultipart("alternative")
-    mensaje["Subject"] = "¡Registro exitoso! Bienvenido/a a Cine Paradiso"
-    mensaje["From"] = remitente
-    mensaje["To"] = destinatario
-    mensaje.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(remitente, password_app)
-        server.send_message(mensaje)
+def enviar_correo_recuperacion_password(
+    destinatario,
+    nombre_usuario,
+    token_recuperacion,
+):
+    """Envía un correo con el enlace y código para restablecer la contraseña."""
+    frontend_url = os.getenv("FRONTEND_PUBLIC_URL", "http://localhost:8080").rstrip("/")
+    enlace = f"{frontend_url}/recuperar-password?token={token_recuperacion}"
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; text-align: center; color: #102044;">
+        <h2>Hola, {nombre_usuario}</h2>
+        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en Cine Paradiso.</p>
+
+        <div style="background-color: #f7d369; border-radius: 20px; padding: 24px; margin: 20px 0;">
+            <p style="font-size: 15px; margin: 0 0 16px 0;">
+                Hacé clic en el siguiente botón para elegir tu nueva contraseña (válido por 30 minutos):
+            </p>
+            <p style="margin: 16px 0;">
+                <a href="{enlace}" style="background-color: #102044; color: #ffffff; padding: 12px 24px; border-radius: 999px; text-decoration: none; font-weight: bold; display: inline-block;">
+                    Restablecer mi contraseña
+                </a>
+            </p>
+            <p style="font-size: 13px; margin: 16px 0 4px 0;">
+                O copiá y pegá este código de recuperación en la pantalla de inicio de sesión:
+            </p>
+            <p style="font-family: monospace; font-size: 12px; word-break: break-all; background: #ffffff; padding: 10px; border-radius: 8px; margin: 0;">
+                {token_recuperacion}
+            </p>
+        </div>
+
+        <p style="font-size: 12px; color: #555;">Si no solicitaste este cambio, podés ignorar este correo.</p>
+    </div>
+    """
+    return _enviar_mensaje_html(
+        destinatario,
+        "Recuperación de contraseña - Cine Paradiso",
+        html,
+    )
