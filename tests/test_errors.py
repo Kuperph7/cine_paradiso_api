@@ -9,15 +9,16 @@ from app.errors import respuesta_error
 from app.services import auth_service, compras_service, entradas_service
 
 
-class TestConfig:
-    TESTING = True
-    DEBUG = False
-    SECRET_KEY = "test-secret-with-at-least-32-bytes"
+TEST_CONFIG = {
+    "TESTING": True,
+    "DEBUG": False,
+    "SECRET_KEY": "test-secret-with-at-least-32-bytes",
+}
 
 
 @pytest.fixture
 def app():
-    return create_app(TestConfig)
+    return create_app(TEST_CONFIG)
 
 
 @pytest.fixture
@@ -28,7 +29,7 @@ def client(app):
 def _authorization(role):
     token = jwt.encode(
         {"usuario_id": 1, "email": "test@example.com", "rol": role},
-        TestConfig.SECRET_KEY,
+        TEST_CONFIG["SECRET_KEY"],
         algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}

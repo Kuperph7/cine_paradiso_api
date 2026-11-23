@@ -3,10 +3,11 @@ from unittest.mock import Mock
 from app import create_app
 
 
-class TestConfig:
-    TESTING = True
-    DEBUG = False
-    SECRET_KEY = "test"
+TEST_CONFIG = {
+    "TESTING": True,
+    "DEBUG": False,
+    "SECRET_KEY": "test",
+}
 
 
 def test_listar_servicios_publicos(monkeypatch):
@@ -20,7 +21,7 @@ def test_listar_servicios_publicos(monkeypatch):
     listar = Mock(return_value={"servicios": [servicio]})
     monkeypatch.setattr("app.routes.servicios.listar_servicios_service", listar)
 
-    cliente = create_app(TestConfig).test_client()
+    cliente = create_app(TEST_CONFIG).test_client()
     respuesta = cliente.get("/servicios")
 
     assert respuesta.status_code == 200
@@ -32,7 +33,7 @@ def test_filtro_inactivos_requiere_administrador(monkeypatch):
     listar = Mock()
     monkeypatch.setattr("app.routes.servicios.listar_servicios_service", listar)
 
-    cliente = create_app(TestConfig).test_client()
+    cliente = create_app(TEST_CONFIG).test_client()
     respuesta = cliente.get("/servicios?incluir_inactivos=true")
 
     assert respuesta.status_code == 403
@@ -40,7 +41,7 @@ def test_filtro_inactivos_requiere_administrador(monkeypatch):
 
 
 def test_filtro_inactivos_invalido_devuelve_400():
-    cliente = create_app(TestConfig).test_client()
+    cliente = create_app(TEST_CONFIG).test_client()
     respuesta = cliente.get("/servicios?incluir_inactivos=si")
 
     assert respuesta.status_code == 400

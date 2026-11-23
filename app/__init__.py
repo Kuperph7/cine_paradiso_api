@@ -14,10 +14,15 @@ from app.routes.servicios import servicios_bp
 from app.routes.categorias import categorias_bp
 from app.routes.health import health_bp
 
-def create_app(config_object=config):
+def create_app(config_values=None):
     app = Flask(__name__)
 
-    app.config.from_object(config_object)
+    # La configuración normal proviene del módulo config y sus variables de
+    # entorno. Los tests pueden reemplazar valores puntuales con un diccionario,
+    # sin definir clases de configuración.
+    app.config.from_object(config)
+    if config_values:
+        app.config.update(config_values)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cartelera_bp)
