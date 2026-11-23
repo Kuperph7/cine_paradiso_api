@@ -4,9 +4,17 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.errors import es_respuesta_error, respuesta_error
 from app.repositories import usuarios_repository
-from app.security import ROL_CLIENTE, generar_token_acceso
+from app.security import (
+    ROL_CLIENTE,
+    decodificar_token_recuperacion,
+    generar_token_acceso,
+    generar_token_recuperacion,
+)
 
-from app.integrations.email import enviar_correo_registro
+from app.integrations.email import (
+    enviar_correo_recuperacion_password,
+    enviar_correo_registro,
+)
 
 def _error_email_duplicado():
     return respuesta_error(
@@ -100,4 +108,64 @@ def obtener_perfil_usuario(usuario_id: int) -> dict:
         "nombre": usuario["nombre"],
         "email": usuario["email"],
         "rol": usuario["rol"],
+    }
+
+
+def solicitar_recuperacion_password(data: dict) -> dict:
+    """Genera un token temporal y envía el correo de recuperación si el email existe."""
+    email = data["email"].strip().lower()
+    usuario = usuarios_repository.obtener_usuario_por_email(email)
+
+    if not usuario:
+        return respuesta_error(
+            404,
+            "USUARIO_NO_ENCONTRADO",
+            "Correo no registrado",
+            "No existe una cuenta registrada con ese correo electrónico.",
+        )
+
+    token = generar_token_recuperacion(usuario)
+    if es_respuesta_error(token):
+        return token
+
+    try:
+        enviar_correo_recuperacion_password(
+            usuario["email"],
+            usuario["nombre"],
+            token,
+        )
+    except Exception as error:
+        print(f"No se pudo enviar el correo de recuperación: {error}")
+
+    return {
+        "mensaje": "Se envió un correo con las instrucciones para restablecer tu contraseña.",
+    }
+
+
+def restablecer_password(data: dict) -> dict:
+    """Valida el token de recuperación y actualiza la contraseña del usuario."""
+    token = data["token"].strip()
+    nueva_password = data["password"]
+
+    identidad = decodificar_token_recuperacion(token)
+    if es_respuesta_error(identidad):
+        return identidad
+
+    usuario = usuarios_repository.obtener_usuario_por_id(int(identidad["usuario_id"]))
+    if not usuario:
+        return respuesta_error(
+            404,
+            "USUARIO_NO_ENCONTRADO",
+            "Usuario no encontrado",
+            "El usuario asociado al código de recuperación no existe.",
+        )
+
+    password_hash = generate_password_hash(nueva_password)
+    usuarios_repository.actualizar_password_usuario(
+        int(usuario["id"]),
+        password_hash,
+    )
+
+    return {
+        "mensaje": "Tu contraseña ha sido actualizada correctamente. Ya podés iniciar sesión.",
     }

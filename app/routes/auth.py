@@ -3,12 +3,16 @@ from app.errors import es_respuesta_error
 from app.validators.auth_validators import (
     validar_registro_usuario,
     validar_login_usuario,
+    validar_solicitud_recuperacion,
+    validar_restablecimiento_password,
 )
 from app.security import requerir_usuario_autenticado
 from app.services.auth_service import (
     registrar_cliente,
     iniciar_sesion,
     obtener_perfil_usuario,
+    solicitar_recuperacion_password,
+    restablecer_password,
 )
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -57,3 +61,29 @@ def perfil():
     if es_respuesta_error(usuario):
         return usuario
     return jsonify(usuario), 200
+
+
+@auth_bp.route("/recuperar-password", methods=["POST"])
+def recuperar_password():
+    """Envía un correo con código/enlace temporal para restablecer la contraseña."""
+    data = request.get_json()
+    error = validar_solicitud_recuperacion(data)
+    if es_respuesta_error(error):
+        return error
+    resultado = solicitar_recuperacion_password(data)
+    if es_respuesta_error(resultado):
+        return resultado
+    return jsonify(resultado), 200
+
+
+@auth_bp.route("/restablecer-password", methods=["POST"])
+def cambiar_password_recuperada():
+    """Actualiza la contraseña del usuario a partir de un token de recuperación válido."""
+    data = request.get_json()
+    error = validar_restablecimiento_password(data)
+    if es_respuesta_error(error):
+        return error
+    resultado = restablecer_password(data)
+    if es_respuesta_error(resultado):
+        return resultado
+    return jsonify(resultado), 200

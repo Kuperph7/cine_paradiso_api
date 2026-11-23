@@ -67,3 +67,32 @@ def validar_header_autorizacion(auth_header: str) -> str:
 
 def validate_role(value):
     return validate_choice(value, "rol", USER_ROLES)
+
+
+def validar_solicitud_recuperacion(data: dict):
+    """Valida el correo electrónico para solicitar la recuperación de contraseña."""
+    if not data or not isinstance(data, dict):
+        return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
+
+    email = data.get("email")
+    if not isinstance(email, str) or not email.strip():
+        return validation_error("El campo 'email' es obligatorio.")
+
+    email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    if not re.match(email_regex, email.strip()):
+        return validation_error("El formato del correo electrónico no es válido.")
+
+
+def validar_restablecimiento_password(data: dict):
+    """Valida el token de recuperación y la nueva contraseña."""
+    if not data or not isinstance(data, dict):
+        return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
+
+    token = data.get("token")
+    password = data.get("password", "")
+
+    if not isinstance(token, str) or not token.strip():
+        return validation_error("El código o token de recuperación es obligatorio.")
+
+    if not isinstance(password, str) or len(password) < 6:
+        return validation_error("La nueva contraseña debe tener al menos 6 caracteres.")

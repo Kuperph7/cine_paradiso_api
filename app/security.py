@@ -60,6 +60,39 @@ def generar_token_acceso(usuario):
     )
 
 
+def generar_token_recuperacion(usuario):
+    """Genera un token JWT temporal (30 minutos) para restablecer la contraseña."""
+    payload = {
+        "usuario_id": int(usuario["id"]),
+        "email": usuario["email"],
+        "proposito": "recuperar_password",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=30),
+    }
+    secreto = _obtener_secreto()
+    if es_respuesta_error(secreto):
+        return secreto
+    return jwt.encode(
+        payload,
+        secreto,
+        algorithm=ALGORITMO_JWT,
+    )
+
+
+def decodificar_token_recuperacion(token):
+    """Valida el token temporal de recuperación de contraseña."""
+    datos = decodificar_token(token)
+    if es_respuesta_error(datos):
+        return datos
+    if datos.get("proposito") != "recuperar_password":
+        return respuesta_error(
+            401,
+            "TOKEN_INVALIDO",
+            "Token inválido",
+            "El token proporcionado no corresponde a una solicitud de recuperación.",
+        )
+    return datos
+
+
 def decodificar_token(token):
     """Valida la firma y vencimiento de un JWT y devuelve su identidad."""
     secreto = _obtener_secreto()
