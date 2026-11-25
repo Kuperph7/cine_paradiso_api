@@ -41,10 +41,42 @@ from app.services.compras_service import (
     _validar_funcion,
     enviar_correo_compra_confirmada,
 )
-from app.services.servicios_service import obtener_config_estacionamiento
+from app.services.servicios_service import (
+    es_servicio_estacionamiento,
+    obtener_config_estacionamiento,
+)
 
 
 ESTADOS_CON_BLOQUEO = {"retenida", "pago_en_proceso", "reservada"}
+
+
+def _buscar_servicio_estacionamiento(conexion, servicios):
+    """Encuentra el servicio de estacionamiento entre los seleccionados por su nombre."""
+    if not servicios:
+        return None
+
+    servicio_ids = []
+    for servicio in servicios:
+        servicio_ids.append(int(servicio["servicio_id"]))
+
+    catalogo = buscar_servicios_por_ids(conexion, servicio_ids)
+    estacionamiento_id = None
+    for item in catalogo:
+        if estacionamiento_id is None and es_servicio_estacionamiento(item):
+            estacionamiento_id = int(item["id"])
+
+    if estacionamiento_id is None:
+        return None
+
+    estacionamiento_seleccionado = None
+    for servicio in servicios:
+        if (
+            estacionamiento_seleccionado is None
+            and int(servicio["servicio_id"]) == estacionamiento_id
+        ):
+            estacionamiento_seleccionado = servicio
+
+    return estacionamiento_seleccionado
 
 
 def _validar_estacionamiento(
@@ -54,20 +86,14 @@ def _validar_estacionamiento(
     excluir_compra_id=None,
 ):
     config = obtener_config_estacionamiento()
-    estacionamiento = next(
-        (
-            servicio
-            for servicio in servicios
-            if int(servicio["servicio_id"]) == config["servicio_id"]
-        ),
-        None,
-    )
+    estacionamiento = _buscar_servicio_estacionamiento(conexion, servicios)
     if estacionamiento is None:
         return None
 
+    servicio_id = int(estacionamiento["servicio_id"])
     ocupados = contar_estacionamientos_ocupados(
         conexion,
-        config["servicio_id"],
+        servicio_id,
         config["duracion_segundos"],
         funcion_id=funcion_id,
         excluir_compra_id=excluir_compra_id,
@@ -529,15 +555,10 @@ def simular_pago(reserva_id, usuario_id, resultado_pago):
             conexion,
             reserva["compra_id"],
         )
-        config_estacionamiento = obtener_config_estacionamiento()
         if any(
-            int(servicio["servicio_id"]) == config_estacionamiento["servicio_id"]
+            es_servicio_estacionamiento(servicio)
             for servicio in servicios_compra
         ):
-            buscar_servicios_por_ids(
-                conexion,
-                [config_estacionamiento["servicio_id"]],
-            )
             error = _validar_estacionamiento(
                 conexion,
                 servicios_compra,

@@ -9,17 +9,23 @@ from app.repositories import servicios_repository
 def obtener_config_estacionamiento():
     """Parámetros del estacionamiento definidos localmente (sin variables globales)."""
     return {
-        "servicio_id": 9,
+        "nombre": "estacionamiento",
         "capacidad_maxima": 20,
         # 3 horas de ocupación (3 * 3600 = 10800 segundos).
         "duracion_segundos": 3 * 3600,
     }
 
 
-def _calcular_disponibles_estacionamiento(funcion_id=None):
+def es_servicio_estacionamiento(servicio):
+    """Indica si un servicio corresponde a estacionamiento por su nombre."""
+    config = obtener_config_estacionamiento()
+    return str(servicio.get("nombre", "")).strip().lower() == config["nombre"]
+
+
+def _calcular_disponibles_estacionamiento(servicio_id, funcion_id=None):
     config = obtener_config_estacionamiento()
     ocupados = servicios_repository.obtener_estacionamientos_ocupados(
-        config["servicio_id"],
+        int(servicio_id),
         config["duracion_segundos"],
         funcion_id=funcion_id,
     )
@@ -40,10 +46,11 @@ def _serializar_servicio(
         "precio": int(servicio["precio"]),
         "activo": bool(servicio["activo"]),
     }
-    if int(servicio["id"]) == config["servicio_id"]:
+    if es_servicio_estacionamiento(servicio):
         if disponibles_estacionamiento is None:
             disponibles_estacionamiento = _calcular_disponibles_estacionamiento(
-                funcion_id=funcion_id
+                servicio["id"],
+                funcion_id=funcion_id,
             )
         resultado["disponibles"] = disponibles_estacionamiento
         resultado["capacidad_maxima"] = config["capacidad_maxima"]
@@ -71,14 +78,21 @@ def _servicio_duplicado():
 
 def listar_servicios(incluir_inactivos=False, funcion_id=None):
     """Lista el catálogo público o el catálogo administrativo completo."""
-    config = obtener_config_estacionamiento()
-    servicios_repository.asegurar_servicio_estacionamiento(
-        config["servicio_id"]
-    )
     servicios = servicios_repository.obtener_todos_los_servicios(
         incluir_inactivos=incluir_inactivos
     )
-    disponibles = _calcular_disponibles_estacionamiento(funcion_id=funcion_id)
+    estacionamiento = None
+    for servicio in servicios:
+        if estacionamiento is None and es_servicio_estacionamiento(servicio):
+            estacionamiento = servicio
+
+    disponibles = None
+    if estacionamiento is not None:
+        disponibles = _calcular_disponibles_estacionamiento(
+            estacionamiento["id"],
+            funcion_id=funcion_id,
+        )
+
     return {
         "servicios": [
             _serializar_servicio(servicio, disponibles, funcion_id=funcion_id)
@@ -96,8 +110,23 @@ def obtener_servicio(servicio_id, permitir_inactivo=False):
 
 def crear_servicio(datos):
     nombre = datos["nombre"]
-    if servicios_repository.obtener_servicio_por_nombre(nombre):
-        return _servicio_duplicado()
+    existente = servicios_repository.obtener_servicio_por_nombre(nombre)
+    if existente is not None:
+        if existente["activo"]:
+            return _servicio_duplicado()
+        servicios_repository.actualizar_servicio(
+            int(existente["id"]),
+            {
+                "nombre": nombre,
+                "descripcion": datos.get("descripcion", ""),
+                "precio": datos["precio"],
+                "activo": True,
+            },
+        )
+        reactivado = servicios_repository.obtener_servicio_por_id(
+            int(existente["id"])
+        )
+        return _serializar_servicio(reactivado)
 
     try:
         servicio_id = servicios_repository.crear_servicio(
