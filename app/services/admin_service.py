@@ -2,6 +2,8 @@
 from flask import current_app
 from mysql.connector import IntegrityError
 
+from datetime import datetime
+
 from app.db import get_db_connection
 from app.errors import respuesta_error, es_respuesta_error
 from app.integrations.peliculas_api import buscar_peliculas as buscar_en_tmdb
@@ -20,6 +22,7 @@ from app.repositories.estadisticas_repository import (
     obtener_ventas_por_genero,
     obtener_ventas_por_franja,
     obtener_total_cancelaciones,
+    obtener_funciones_canceladas,
 )
 
 from app.repositories.categorias_repository import (
@@ -326,6 +329,12 @@ def _serializar_ocupacion_funcion(funcion):
         ),
     }
 
+def _fecha_iso(valor):
+    if valor is None:
+        return None
+    if isinstance(valor, datetime):
+        return valor.isoformat(timespec="minutes")
+    return str(valor)
 
 def _serializar_ocupacion_pelicula(pelicula):
     vendidas = int(pelicula["butacas_vendidas"])
@@ -349,16 +358,66 @@ def _serializar_ventas_genero(genero):
     }
 
 
-def _serializar_franja(franja):
-    hora_inicio = int(franja["hora_inicio"])
+def _serializar_franja(hora_inicio, entradas_vendidas):
     hora_fin = (hora_inicio + 3) % 24
 
     return {
-        "franja": (
-            f"{hora_inicio:02d}:00-{hora_fin:02d}:00"
-        ),
-        "entradas_vendidas": int(
-            franja["entradas_vendidas"]
+        "franja": f"{hora_inicio:02d}:00-{hora_fin:02d}:00",
+        "hora_inicio": hora_inicio,
+        "entradas_vendidas": entradas_vendidas,
+    }
+
+def _completar_franjas(filas):
+    por_hora = {
+        int(fila["hora_inicio"]): int(fila["entradas_vendidas"])
+        for fila in filas
+    }
+    if not por_hora:
+        return []
+
+    return [
+        _serializar_franja(hora, por_hora.get(hora, 0))
+        for hora in range(min(por_hora), max(por_hora) + 1, 3)
+    ]
+
+def _serializar_funcion_cancelada(funcion):
+    return {
+        "funcion_id": int(funcion["funcion_id"]),
+        "fecha_hora": _fecha_iso(funcion.get("fecha_hora")),
+        "pelicula_titulo": funcion.get("pelicula_titulo"),
+        "sala_nombre": funcion.get("sala_nombre"),
+        "compras_afectadas": int(funcion.get("compras_afectadas") or 0),
+    }
+
+
+def _serializar_compra_cancelada(compra):
+    return {
+        "compra_id": int(compra["compra_id"]),
+        "funcion_id": int(compra["funcion_id"]),
+        "funcion_fecha_hora": _fecha_iso(compra.get("funcion_fecha_hora")),
+        "pelicula_titulo": compra.get("pelicula_titulo"),
+        "fecha_cancelacion": _fecha_iso(compra.get("fecha_cancelacion")),
+        "motivo": compra.get("motivo_cancelacion") or "Sin motivo informado",
+        "cantidad_entradas": int(compra.get("cantidad_entradas") or 0),
+    }
+
+
+def _armar_resumen(funciones, generos, franjas, canceladas, cancelaciones):
+    vendidas = sum(f["butacas_vendidas"] for f in funciones)
+    capacidad = sum(f["capacidad"] for f in funciones)
+    franjas_con_ventas = [f for f in franjas if f["entradas_vendidas"] > 0]
+
+    return {
+        "entradas_vendidas": vendidas,
+        "capacidad_total": capacidad,
+        "ocupacion_promedio": _calcular_porcentaje(vendidas, capacidad),
+        "total_funciones": len(funciones),
+        "funciones_canceladas": len(canceladas),
+        "compras_canceladas": cancelaciones,
+        "genero_mas_vendido": generos[0]["genero"] if generos else None,
+        "franja_mas_vendida": (
+            max(franjas_con_ventas, key=lambda f: f["entradas_vendidas"])["franja"]
+            if franjas_con_ventas else None
         ),
     }
 
@@ -367,55 +426,43 @@ def obtener_estadisticas(filtros):
     conexion = get_db_connection()
 
     try:
-        ocupacion_funciones = obtener_ocupacion_por_funcion(
-            conexion,
-            filtros,
+        funciones = [
+            _serializar_ocupacion_funcion(funcion)
+            for funcion in obtener_ocupacion_por_funcion(conexion, filtros)
+        ]
+        peliculas = sorted(
+            (
+                _serializar_ocupacion_pelicula(pelicula)
+                for pelicula in obtener_ocupacion_por_pelicula(conexion, filtros)
+            ),
+            key=lambda p: (-p["porcentaje"], p["titulo"] or ""),
         )
-
-        ocupacion_peliculas = obtener_ocupacion_por_pelicula(
-            conexion,
-            filtros,
-        )
-
-        ventas_generos = obtener_ventas_por_genero(
-            conexion,
-            filtros,
-        )
-
-        ventas_franjas = obtener_ventas_por_franja(
-            conexion,
-            filtros,
-        )
-
-        cancelaciones = obtener_total_cancelaciones(
-            conexion,
-            filtros,
-        )
+        generos = [
+            _serializar_ventas_genero(genero)
+            for genero in obtener_ventas_por_genero(conexion, filtros)
+        ]
+        franjas = _completar_franjas(obtener_ventas_por_franja(conexion, filtros))
+        canceladas = [
+            _serializar_funcion_cancelada(funcion)
+            for funcion in obtener_funciones_canceladas(conexion, filtros)
+        ]
+        compras_canceladas = [
+            _serializar_compra_cancelada(compra)
+            for compra in obtener_total_cancelaciones(conexion, filtros)
+        ]
+        cancelaciones = len(compras_canceladas)
 
         return {
-            "ocupacion_por_funcion": [
-                _serializar_ocupacion_funcion(funcion)
-                for funcion in ocupacion_funciones
-            ],
-
-            "ocupacion_por_pelicula": [
-                _serializar_ocupacion_pelicula(pelicula)
-                for pelicula in ocupacion_peliculas
-            ],
-
-            "ventas_por_genero": [
-                _serializar_ventas_genero(genero)
-                for genero in ventas_generos
-            ],
-
-            "franjas_horarias": [
-                _serializar_franja(franja)
-                for franja in ventas_franjas
-            ],
-
-            "cancelaciones": int(
-                cancelaciones["cancelaciones"]
+            "resumen": _armar_resumen(
+                funciones, generos, franjas, canceladas, cancelaciones
             ),
+            "ocupacion_por_funcion": funciones,
+            "ocupacion_por_pelicula": peliculas,
+            "ventas_por_genero": generos,
+            "franjas_horarias": franjas,
+            "funciones_canceladas": canceladas,
+            "compras_canceladas": compras_canceladas,
+            "cancelaciones": cancelaciones,
         }
 
     finally:
