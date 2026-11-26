@@ -102,7 +102,7 @@ def post_validar_entrada():
     if es_respuesta_error(error):
         return error
     resultado = validar_entrada_qr(
-        data["codigo_qr"].strip(), data["funcion_id"]
+        data["codigo_qr"].strip()
     )
     if es_respuesta_error(resultado):
         return resultado
