@@ -22,9 +22,9 @@ def consultar_entrada(usuario_id: int, entrada_id: int) -> dict:
     return entrada
 
 
-def validar_entrada_qr(codigo_qr: str, funcion_id: int) -> dict:
+def validar_entrada_qr(codigo_qr: str) -> dict:
     """Verifica el QR contra la función solicitada y marca la entrada como utilizada de forma atómica."""
-    entrada = entradas_repository.obtener_entrada_por_qr(codigo_qr, funcion_id)
+    entrada = entradas_repository.obtener_entrada_por_qr(codigo_qr)
 
     if not entrada:
         return respuesta_error(

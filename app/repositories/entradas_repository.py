@@ -44,8 +44,8 @@ def obtener_entrada_por_id(entrada_id: int, usuario_id: int):
         conn.close()
 
 
-def obtener_entrada_por_qr(codigo_qr: str, funcion_id: int):
-    """Busca una entrada por su código QR y función para el control de acceso."""
+def obtener_entrada_por_qr(codigo_qr: str):
+    """Busca una entrada por su código QR para el control de acceso."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -62,9 +62,8 @@ def obtener_entrada_por_qr(codigo_qr: str, funcion_id: int):
             INNER JOIN butacas_funcion AS bf
                 ON bf.id = e.butaca_funcion_id
             WHERE e.codigo_qr = %s
-              AND bf.funcion_id = %s
         """
-        cursor.execute(query, (codigo_qr, funcion_id))
+        cursor.execute(query, (codigo_qr,))
         return cursor.fetchone()
     finally:
         cursor.close()

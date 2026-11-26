@@ -59,7 +59,7 @@ def validar_actualizacion_servicio(data: dict):
 
 
 def validar_entrada_qr_request(data: dict):
-    """Valida que el cuerpo del request incluya codigo_qr y funcion_id."""
+    """Valida que el cuerpo del request incluya codigo_qr."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
 
@@ -67,13 +67,7 @@ def validar_entrada_qr_request(data: dict):
     if not codigo_qr or not isinstance(codigo_qr, str) or not codigo_qr.strip():
         return validation_error("El campo 'codigo_qr' es obligatorio.")
 
-    funcion_id = data.get("funcion_id")
-    if (
-        isinstance(funcion_id, bool)
-        or not isinstance(funcion_id, int)
-        or funcion_id < 1
-    ):
-        return validation_error("El campo 'funcion_id' debe ser un entero positivo.")
+    
 
 
 CAMPOS_PELICULA_CREACION = {
