@@ -20,7 +20,7 @@ def get_mis_entradas():
 
 
 @entradas_bp.route("/entradas/<int:entrada_id>", methods=["GET"])
-def get_entrada(entrada_id: int):
+def get_entrada(entrada_id):
     """Devuelve el detalle de una entrada específica que pertenezca al cliente autenticado."""
     identidad = requerir_acceso_entradas()
     if es_respuesta_error(identidad):

@@ -2,7 +2,7 @@
 from app.db import get_db_connection
 
 
-def asegurar_servicio_estacionamiento(servicio_id: int):
+def asegurar_servicio_estacionamiento(servicio_id):
     """Garantiza que exista el servicio de estacionamiento en la base de datos."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -22,10 +22,10 @@ def asegurar_servicio_estacionamiento(servicio_id: int):
 
 
 def obtener_estacionamientos_ocupados(
-    servicio_id: int,
-    duracion_segundos: int,
+    servicio_id,
+    duracion_segundos,
     funcion_id=None,
-) -> int:
+):
     """Devuelve cuántos lugares de estacionamiento están ocupados actualmente."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -104,7 +104,7 @@ def obtener_todos_los_servicios(incluir_inactivos=True):
         conn.close()
 
 
-def obtener_servicio_por_id(servicio_id: int):
+def obtener_servicio_por_id(servicio_id):
     """Busca un servicio por su identificador único."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -117,7 +117,7 @@ def obtener_servicio_por_id(servicio_id: int):
         conn.close()
 
 
-def obtener_servicio_por_nombre(nombre: str):
+def obtener_servicio_por_nombre(nombre):
     """Busca un servicio por su nombre exacto."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -130,7 +130,7 @@ def obtener_servicio_por_nombre(nombre: str):
         conn.close()
 
 
-def crear_servicio(nombre: str, descripcion: str, precio: int, activo: bool = True) -> int:
+def crear_servicio(nombre, descripcion, precio, activo=True):
     """Inserta un nuevo servicio adicional y retorna su id generado."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -150,7 +150,7 @@ def crear_servicio(nombre: str, descripcion: str, precio: int, activo: bool = Tr
         conn.close()
 
 
-def actualizar_servicio(servicio_id: int, campos: dict):
+def actualizar_servicio(servicio_id, campos):
     """Actualiza dinámicamente los campos especificados de un servicio."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -172,7 +172,7 @@ def actualizar_servicio(servicio_id: int, campos: dict):
         conn.close()
 
 
-def dar_de_baja_servicio(servicio_id: int):
+def dar_de_baja_servicio(servicio_id):
     """Realiza una baja lógica desactivando el servicio sin eliminarlo."""
     conn = get_db_connection()
     cursor = conn.cursor()

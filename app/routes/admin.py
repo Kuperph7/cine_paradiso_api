@@ -64,7 +64,7 @@ def post_servicio():
 
 
 @admin_bp.route("/servicios/<int:servicio_id>", methods=["PATCH"])
-def patch_servicio(servicio_id: int):
+def patch_servicio(servicio_id):
     """Modifica los datos de un servicio adicional existente."""
     identidad = requerir_administrador()
     if es_respuesta_error(identidad):
@@ -80,7 +80,7 @@ def patch_servicio(servicio_id: int):
 
 
 @admin_bp.route("/servicios/<int:servicio_id>", methods=["DELETE"])
-def delete_servicio(servicio_id: int):
+def delete_servicio(servicio_id):
     """Realiza la baja lógica de un servicio desactivándolo."""
     identidad = requerir_administrador()
     if es_respuesta_error(identidad):

@@ -46,7 +46,7 @@ CATEGORIAS_TMDB = {
     10749: "Romance",
 }
 
-def listar_servicios() -> dict:
+def listar_servicios():
     """Lista todos los servicios adicionales."""
     servicios = servicios_repository.obtener_todos_los_servicios()
     for servicio in servicios:
@@ -54,7 +54,7 @@ def listar_servicios() -> dict:
     return {"servicios": servicios}
 
 
-def crear_servicio(data: dict) -> dict:
+def crear_servicio(data):
     """Crea un nuevo servicio adicional verificando que no exista duplicación."""
     nombre = data["nombre"].strip()
     if servicios_repository.obtener_servicio_por_nombre(nombre):
@@ -74,7 +74,7 @@ def crear_servicio(data: dict) -> dict:
     }
 
 
-def modificar_servicio(servicio_id: int, data: dict):
+def modificar_servicio(servicio_id, data):
     """Actualiza la información de un servicio verificando su existencia."""
     servicio = servicios_repository.obtener_servicio_por_id(servicio_id)
     if not servicio:
@@ -97,7 +97,7 @@ def modificar_servicio(servicio_id: int, data: dict):
         servicios_repository.actualizar_servicio(servicio_id, campos)
 
 
-def eliminar_servicio(servicio_id: int):
+def eliminar_servicio(servicio_id):
     """Desactiva lógicamente un servicio verificando su existencia."""
     servicio = servicios_repository.obtener_servicio_por_id(servicio_id)
     if not servicio:

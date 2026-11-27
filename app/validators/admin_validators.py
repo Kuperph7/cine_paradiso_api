@@ -15,7 +15,7 @@ ZONA_HORARIA = ZoneInfo("America/Argentina/Buenos_Aires")
 FUNCTION_STATES = frozenset({"programada", "cancelada"})
 DEFAULT_FUNCTION_STATE = "programada"
 
-def validar_creacion_servicio(data: dict):
+def validar_creacion_servicio(data):
     """Valida los campos obligatorios y tipos para crear un servicio."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
@@ -33,7 +33,7 @@ def validar_creacion_servicio(data: dict):
         return validation_error("El campo 'descripcion' debe ser una cadena de texto.")
 
 
-def validar_actualizacion_servicio(data: dict):
+def validar_actualizacion_servicio(data):
     """Valida los campos a modificar de un servicio existente."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
@@ -58,7 +58,7 @@ def validar_actualizacion_servicio(data: dict):
             return validation_error("El campo 'descripcion' debe ser una cadena de texto.")
 
 
-def validar_entrada_qr_request(data: dict):
+def validar_entrada_qr_request(data):
     """Valida que el cuerpo del request incluya codigo_qr."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")

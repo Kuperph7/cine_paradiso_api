@@ -11,12 +11,12 @@ def generar_token_qr():
     return f"QRCINE-{uuid4().hex}"
 
 
-def generar_codigo_qr() -> str:
+def generar_codigo_qr():
     """Mantiene la función de generación existente."""
     return f"QRCINE-{uuid.uuid4().hex[:8]}"
 
 
-def generar_imagen_qr_png(codigo_qr: str) -> bytes:
+def generar_imagen_qr_png(codigo_qr):
     """Convierte el código de una entrada en una imagen PNG."""
     imagen = qrcode.make(codigo_qr)
 

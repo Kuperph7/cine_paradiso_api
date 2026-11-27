@@ -25,7 +25,7 @@ def _error_email_duplicado():
     )
 
 
-def registrar_cliente(data: dict) -> dict:
+def registrar_cliente(data):
     """Registra un nuevo cliente con contraseña hasheada."""
     email = data["email"].strip().lower()
     nombre = data["nombre"].strip()
@@ -62,7 +62,7 @@ def registrar_cliente(data: dict) -> dict:
     }
 
 
-def iniciar_sesion(data: dict) -> dict:
+def iniciar_sesion(data):
     """Valida credenciales y genera el token de acceso JWT."""
     email = data["email"].strip().lower()
     password = data["password"]
@@ -92,7 +92,7 @@ def iniciar_sesion(data: dict) -> dict:
     }
 
 
-def obtener_perfil_usuario(usuario_id: int) -> dict:
+def obtener_perfil_usuario(usuario_id):
     """Obtiene el perfil de una identidad previamente autenticada."""
     usuario = usuarios_repository.obtener_usuario_por_id(usuario_id)
     if not usuario:
@@ -111,7 +111,7 @@ def obtener_perfil_usuario(usuario_id: int) -> dict:
     }
 
 
-def solicitar_recuperacion_password(data: dict) -> dict:
+def solicitar_recuperacion_password(data):
     """Genera un token temporal y envía el correo de recuperación si el email existe."""
     email = data["email"].strip().lower()
     usuario = usuarios_repository.obtener_usuario_por_email(email)
@@ -142,7 +142,7 @@ def solicitar_recuperacion_password(data: dict) -> dict:
     }
 
 
-def restablecer_password(data: dict) -> dict:
+def restablecer_password(data):
     """Valida el token de recuperación y actualiza la contraseña del usuario."""
     token = data["token"].strip()
     nueva_password = data["password"]

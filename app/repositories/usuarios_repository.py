@@ -2,7 +2,7 @@
 from app.db import get_db_connection
 
 
-def obtener_usuario_por_email(email: str):
+def obtener_usuario_por_email(email):
     """Busca un usuario por su correo electrónico."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -15,7 +15,7 @@ def obtener_usuario_por_email(email: str):
         conn.close()
 
 
-def crear_usuario(nombre: str, email: str, password_hash: str, rol: str) -> int:
+def crear_usuario(nombre, email, password_hash, rol):
     """Inserta un nuevo usuario en la base de datos y retorna su id."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -32,7 +32,7 @@ def crear_usuario(nombre: str, email: str, password_hash: str, rol: str) -> int:
         conn.close()
 
 
-def obtener_usuario_por_id(usuario_id: int):
+def obtener_usuario_por_id(usuario_id):
     """Busca un usuario por su identificador único."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -45,7 +45,7 @@ def obtener_usuario_por_id(usuario_id: int):
         conn.close()
 
 
-def actualizar_password_usuario(usuario_id: int, password_hash: str) -> bool:
+def actualizar_password_usuario(usuario_id, password_hash):
     """Actualiza el hash de la contraseña de un usuario existente."""
     conn = get_db_connection()
     cursor = conn.cursor()

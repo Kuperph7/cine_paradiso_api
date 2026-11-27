@@ -3,13 +3,13 @@ from app.errors import respuesta_error
 from app.repositories import entradas_repository
 
 
-def listar_mis_entradas(usuario_id: int) -> dict:
+def listar_mis_entradas(usuario_id):
     """Retorna todas las entradas del cliente autenticado con función, butaca, estado y QR."""
     entradas = entradas_repository.obtener_entradas_por_cliente(usuario_id)
     return {"entradas": entradas}
 
 
-def consultar_entrada(usuario_id: int, entrada_id: int) -> dict:
+def consultar_entrada(usuario_id, entrada_id):
     """Retorna el detalle de una entrada si pertenece al cliente autenticado."""
     entrada = entradas_repository.obtener_entrada_por_id(entrada_id, usuario_id)
     if not entrada:
@@ -22,7 +22,7 @@ def consultar_entrada(usuario_id: int, entrada_id: int) -> dict:
     return entrada
 
 
-def validar_entrada_qr(codigo_qr: str) -> dict:
+def validar_entrada_qr(codigo_qr):
     """Verifica el QR contra la función solicitada y marca la entrada como utilizada de forma atómica."""
     entrada = entradas_repository.obtener_entrada_por_qr(codigo_qr)
 

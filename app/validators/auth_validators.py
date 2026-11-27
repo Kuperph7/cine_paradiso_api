@@ -9,7 +9,7 @@ USER_ROLES = frozenset({"cliente", "administrador"})
 DEFAULT_USER_ROLE = "cliente"
 
 
-def validar_registro_usuario(data: dict):
+def validar_registro_usuario(data):
     """Valida los campos necesarios para registrar un cliente."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
@@ -32,7 +32,7 @@ def validar_registro_usuario(data: dict):
         return validation_error("La contraseña debe tener al menos 6 caracteres.")
 
 
-def validar_login_usuario(data: dict):
+def validar_login_usuario(data):
     """Valida los campos necesarios para iniciar sesión."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
@@ -45,7 +45,7 @@ def validar_login_usuario(data: dict):
         return validation_error("Email y contraseña son obligatorios.")
 
 
-def validar_header_autorizacion(auth_header: str) -> str:
+def validar_header_autorizacion(auth_header):
     """Valida la presencia y formato del encabezado Authorization Bearer."""
     if not auth_header:
         return respuesta_error(
@@ -69,7 +69,7 @@ def validate_role(value):
     return validate_choice(value, "rol", USER_ROLES)
 
 
-def validar_solicitud_recuperacion(data: dict):
+def validar_solicitud_recuperacion(data):
     """Valida el correo electrónico para solicitar la recuperación de contraseña."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")
@@ -83,7 +83,7 @@ def validar_solicitud_recuperacion(data: dict):
         return validation_error("El formato del correo electrónico no es válido.")
 
 
-def validar_restablecimiento_password(data: dict):
+def validar_restablecimiento_password(data):
     """Valida el token de recuperación y la nueva contraseña."""
     if not data or not isinstance(data, dict):
         return validation_error("El cuerpo de la solicitud debe ser un JSON válido.")

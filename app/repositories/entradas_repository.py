@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from app.db import get_db_connection
 
 
-def obtener_entradas_por_cliente(usuario_id: int) -> list:
+def obtener_entradas_por_cliente(usuario_id):
     """Devuelve todas las entradas del cliente autenticado con datos de función y butaca."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -24,7 +24,7 @@ def obtener_entradas_por_cliente(usuario_id: int) -> list:
         conn.close()
 
 
-def obtener_entrada_por_id(entrada_id: int, usuario_id: int):
+def obtener_entrada_por_id(entrada_id, usuario_id):
     """Busca una entrada específica verificando que pertenezca al cliente autenticado."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -44,7 +44,7 @@ def obtener_entrada_por_id(entrada_id: int, usuario_id: int):
         conn.close()
 
 
-def obtener_entrada_por_qr(codigo_qr: str):
+def obtener_entrada_por_qr(codigo_qr):
     """Busca una entrada por su código QR para el control de acceso."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -70,7 +70,7 @@ def obtener_entrada_por_qr(codigo_qr: str):
         conn.close()
 
 
-def marcar_entrada_utilizada(entrada_id: int) -> int:
+def marcar_entrada_utilizada(entrada_id):
     """Actualiza el estado a 'utilizada' y registra la fecha de validación de forma atómica."""
     conn = get_db_connection()
     cursor = conn.cursor()
